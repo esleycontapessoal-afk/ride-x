@@ -447,6 +447,7 @@
             backgroundRecordingWarning: false,
             authUser: null,
             userProfile: null,
+            profileEditing: false,
             routes: [
                 { id: 1, name: 'Serra do Rio do Rastro', location: 'Santa Catarina, BR', distance: '24.2 km', elevation: '1,240 m', difficulty: 'Extrema', rating: '4.9', image: 'https://placehold.co/600x400/1C2026/B7F34A?text=Serra+Rastro' },
                 { id: 2, name: 'Trilha dos Canions', location: 'Cambará do Sul, RS', distance: '48.5 km', elevation: '850 m', difficulty: 'Moderada', rating: '4.8', image: 'https://placehold.co/600x400/1C2026/B7F34A?text=Canions+RS' },
@@ -1031,6 +1032,52 @@
                 `;
             }
             const profile = state.userProfile || {};
+            if (state.userProfile && !state.profileEditing) {
+                const profileDetails = [
+                    profile.handle ? { label: 'Apelido', value: profile.handle } : null,
+                    profile.age !== null && profile.age !== undefined ? { label: 'Idade', value: `${profile.age} anos` } : null,
+                    profile.height_cm ? { label: 'Altura', value: `${profile.height_cm} cm` } : null,
+                    profile.weight_kg ? { label: 'Peso', value: `${Number(profile.weight_kg).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg` } : null
+                ].filter(Boolean);
+                return `
+                    <section class="mx-auto max-w-3xl space-y-5 animate-in fade-in duration-300">
+                        <div class="overflow-hidden rounded-3xl border border-lime/20 bg-[radial-gradient(ellipse_at_top_left,rgba(183,243,74,0.16),transparent_52%),linear-gradient(145deg,#1c2026,#101214)] p-6 sm:p-9">
+                            <div class="flex flex-col gap-6 sm:flex-row sm:items-center">
+                                <span class="grid h-20 w-20 shrink-0 place-items-center rounded-3xl border border-lime/20 bg-lime/10 text-3xl text-lime"><i class="fa-solid fa-person-biking"></i></span>
+                                <div class="min-w-0 flex-1">
+                                    <span class="inline-flex items-center gap-2 rounded-full bg-lime/10 px-3 py-1 text-xs font-bold text-lime"><i class="fa-solid fa-circle-check"></i>PERFIL SALVO</span>
+                                    <h2 class="mt-3 break-words text-3xl font-black text-white">${escapeHTML(profile.full_name)}</h2>
+                                    <p class="mt-1 break-all text-sm text-slate-400">${escapeHTML(state.authUser.email || 'Conta RIDE X')}</p>
+                                </div>
+                                <button onclick="editUserProfile()" class="shrink-0 rounded-xl border border-grafite-500 bg-grafite-800/70 px-4 py-3 text-sm font-semibold text-white transition hover:border-lime/40 hover:text-lime"><i class="fa-solid fa-pen mr-2"></i>Editar perfil</button>
+                            </div>
+                            ${profileDetails.length ? `
+                                <div class="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                    ${profileDetails.map(detail => `
+                                        <div class="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                            <p class="text-xs font-medium text-slate-500">${escapeHTML(detail.label)}</p>
+                                            <p class="mt-1 break-words text-base font-bold text-white">${escapeHTML(detail.value)}</p>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
+                            ${profile.bio ? `<p class="mt-5 whitespace-pre-line text-sm leading-6 text-slate-300">${escapeHTML(profile.bio)}</p>` : ''}
+                        </div>
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <button onclick="switchView('dashboard')" class="group rounded-2xl border border-grafite-600 bg-grafite-900/60 p-5 text-left transition hover:border-lime/30 hover:bg-grafite-900">
+                                <span class="grid h-11 w-11 place-items-center rounded-xl bg-sky-400/10 text-lg text-sky-300"><i class="fa-solid fa-chart-line"></i></span>
+                                <span class="mt-4 block font-bold text-white">Abrir meu dashboard</span>
+                                <span class="mt-1 block text-sm text-slate-400">Veja seu histórico e suas atividades.</span>
+                            </button>
+                            <button onclick="handleActivityButton()" class="group rounded-2xl border border-grafite-600 bg-grafite-900/60 p-5 text-left transition hover:border-lime/30 hover:bg-grafite-900">
+                                <span class="grid h-11 w-11 place-items-center rounded-xl bg-lime/10 text-lg text-lime"><i class="fa-solid fa-play"></i></span>
+                                <span class="mt-4 block font-bold text-white">Iniciar pedal</span>
+                                <span class="mt-1 block text-sm text-slate-400">Grave uma nova atividade com GPS.</span>
+                            </button>
+                        </div>
+                    </section>
+                `;
+            }
             const fullName = profile.full_name ?? state.authUser.user_metadata?.full_name ?? state.authUser.user_metadata?.name ?? '';
             return `
                 <form onsubmit="saveUserProfile(event)" class="mx-auto max-w-3xl space-y-5 animate-in fade-in duration-300">
@@ -1372,6 +1419,7 @@
                     .single();
                 if (error) throw error;
                 state.userProfile = data;
+                state.profileEditing = false;
                 updateAuthInterface();
                 renderContent();
                 showToast('Perfil salvo na sua conta.', 'success');
@@ -1383,10 +1431,16 @@
             }
         }
 
+        function editUserProfile() {
+            state.profileEditing = true;
+            renderContent();
+        }
+
         async function loadUserData() {
             const localActivities = loadLocalActivities();
             if (!state.authUser || !window.rideXSupabase) {
                 state.userProfile = null;
+                state.profileEditing = false;
                 state.activities = localActivities;
                 state.bicycles = [];
                 state.activeActivity = localActivities.find(activity => activity.status === 'in_progress' || activity.status === 'paused') || null;
