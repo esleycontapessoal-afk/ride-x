@@ -1,0 +1,2385 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0B0D0F">
+    <title>RIDE X | Outdoor Premium Experience</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        lime: {
+                            DEFAULT: '#B7F34A',
+                            hover: '#a3df3b',
+                            light: '#d2f781',
+                            dark: '#8cc229'
+                        },
+                        grafite: {
+                            900: '#0B0D0F',
+                            800: '#121417',
+                            700: '#1C2026',
+                            600: '#2A303A',
+                            500: '#3E4756'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #121417;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2A303A;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #B7F34A;
+        }
+        .glass-panel {
+            background: rgba(28, 32, 38, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(183, 243, 74, 0.12);
+        }
+        .glass-panel-hover:hover {
+            border-color: rgba(183, 243, 74, 0.4);
+            box-shadow: 0 10px 30px -10px rgba(183, 243, 74, 0.15);
+        }
+        .glow-lime {
+            box-shadow: 0 0 25px -5px rgba(183, 243, 74, 0.35);
+        }
+        .text-glow {
+            text-shadow: 0 0 12px rgba(183, 243, 74, 0.4);
+        }
+        #home-map {
+            min-height: 360px;
+            background: #1C2026;
+        }
+        #tracking-metrics-map {
+            height: min(34dvh, 320px);
+            min-height: 200px;
+            background: #1C2026;
+        }
+        @supports not (height: 1dvh) {
+            #tracking-metrics-map {
+                height: min(34vh, 320px);
+            }
+            #app-wrapper {
+                height: 100vh;
+            }
+        }
+        .safe-area-button {
+            right: max(1.5rem, env(safe-area-inset-right));
+            bottom: max(1.5rem, env(safe-area-inset-bottom));
+        }
+        .safe-area-modal {
+            padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+        }
+    </style>
+</head>
+<body class="bg-grafite-800 text-slate-100 font-sans antialiased selection:bg-lime selection:text-grafite-900 min-h-screen flex flex-col">
+
+    <div id="toast-container" class="fixed bottom-24 right-6 z-50 flex flex-col gap-3 pointer-events-none"></div>
+    <button id="activity-toggle" onclick="handleActivityButton()" aria-label="Iniciar atividade" class="safe-area-button fixed z-40 flex items-center gap-3 rounded-full bg-lime px-5 py-4 font-bold text-grafite-900 shadow-xl shadow-lime/25 transition-all hover:scale-105 hover:bg-lime-hover focus:outline-none focus:ring-2 focus:ring-lime focus:ring-offset-2 focus:ring-offset-grafite-900">
+        <i class="fa-solid fa-play"></i>
+        <span>Iniciar Atividade</span>
+    </button>
+
+    <!-- MAIN APP WRAPPER -->
+    <div id="app-wrapper" class="flex h-dvh overflow-hidden">
+
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-72 bg-grafite-900 border-r border-grafite-600 flex flex-col transition-transform duration-300 -translate-x-full lg:translate-x-0 lg:static lg:inset-auto">
+            <!-- Brand Header -->
+            <div class="h-20 flex items-center justify-between px-6 border-b border-grafite-600">
+                <div class="flex items-center gap-3 cursor-pointer" onclick="switchView('landing')">
+                    <div class="w-10 h-10 rounded-xl bg-lime flex items-center justify-center text-grafite-900 font-black text-xl glow-lime">
+                        <i class="fa-solid fa-bolt"></i>
+                    </div>
+                    <div>
+                        <span class="text-2xl font-black tracking-wider text-white">RIDE<span class="text-lime">X</span></span>
+                        <span class="block text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Outdoor Ecosystem</span>
+                    </div>
+                </div>
+                <button onclick="toggleSidebar()" class="lg:hidden text-slate-400 hover:text-white p-2">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Navigation Links -->
+            <div class="flex-1 overflow-y-auto px-4 py-6 space-y-2">
+                <div class="px-3 pb-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Plataforma</div>
+                
+                <button onclick="switchView('landing')" id="nav-landing" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-medium text-slate-300 hover:bg-grafite-700 hover:text-white transition-all group">
+                    <i class="fa-solid fa-compass text-lg text-slate-400 group-hover:text-lime transition-colors"></i>
+                    <span>Landing Page</span>
+                </button>
+
+                <button onclick="switchView('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-medium text-slate-300 hover:bg-grafite-700 hover:text-white transition-all group">
+                    <i class="fa-solid fa-chart-line text-lg text-slate-400 group-hover:text-lime transition-colors"></i>
+                    <span>Dashboard</span>
+                    <span class="ml-auto bg-lime/10 text-lime text-xs px-2 py-0.5 rounded-full font-semibold">Live</span>
+                </button>
+
+                <button onclick="switchView('routes')" id="nav-routes" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-medium text-slate-300 hover:bg-grafite-700 hover:text-white transition-all group">
+                    <i class="fa-solid fa-route text-lg text-slate-400 group-hover:text-lime transition-colors"></i>
+                    <span>Trilhas & Rotas</span>
+                </button>
+
+                <button onclick="switchView('community')" id="nav-community" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-medium text-slate-300 hover:bg-grafite-700 hover:text-white transition-all group">
+                    <i class="fa-solid fa-users text-lg text-slate-400 group-hover:text-lime transition-colors"></i>
+                    <span>Comunidade</span>
+                </button>
+
+                <button onclick="switchView('equipment')" id="nav-equipment" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-medium text-slate-300 hover:bg-grafite-700 hover:text-white transition-all group">
+                    <i class="fa-solid fa-bicycle text-lg text-slate-400 group-hover:text-lime transition-colors"></i>
+                    <span>Equipamentos</span>
+                </button>
+
+                <div class="pt-6 px-3 pb-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Sistema</div>
+
+                <button onclick="switchView('settings')" id="nav-settings" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-medium text-slate-300 hover:bg-grafite-700 hover:text-white transition-all group">
+                    <i class="fa-solid fa-gear text-lg text-slate-400 group-hover:text-lime transition-colors"></i>
+                    <span>Configurações</span>
+                </button>
+            </div>
+
+            <!-- User Mini Profile Footer -->
+            <div class="p-4 border-t border-grafite-600 bg-grafite-900/80">
+                <div class="flex items-center gap-3 p-2 rounded-xl bg-grafite-700/50 border border-grafite-600">
+                    <img src="https://placehold.co/120x120/1C2026/B7F34A?text=RX" alt="Avatar" class="w-10 h-10 rounded-lg object-cover border border-lime/30">
+                    <div class="flex-1 min-w-0">
+                        <h4 id="profile-name" class="text-sm font-semibold text-white truncate">Visitante</h4>
+                        <p id="profile-status" class="text-xs text-lime flex items-center gap-1 font-medium">
+                            <i class="fa-solid fa-shield-halved text-[10px]"></i> Pro Rider
+                        </p>
+                    </div>
+                    <button id="auth-action" onclick="openAuthModal()" class="text-slate-400 hover:text-white p-2" aria-label="Entrar ou cadastrar">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT AREA -->
+        <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+            
+            <!-- Top Header Bar -->
+            <header class="h-20 bg-grafite-800/90 backdrop-blur border-b border-grafite-600 flex items-center justify-between px-6 lg:px-10 z-30 shrink-0">
+                <div class="flex items-center gap-4">
+                    <button onclick="toggleSidebar()" class="lg:hidden text-slate-300 hover:text-white p-2 rounded-lg bg-grafite-700">
+                        <i class="fa-solid fa-bars text-lg"></i>
+                    </button>
+                    <div>
+                        <h1 id="view-title" class="text-xl lg:text-2xl font-bold text-white tracking-tight">Landing Page</h1>
+                        <p id="view-subtitle" class="text-xs text-slate-400 hidden sm:block">Explore o design system e a plataforma RIDE X</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <button id="header-auth-action" onclick="openAuthModal()" class="px-3 py-2 rounded-xl bg-grafite-700 text-slate-200 hover:bg-grafite-600 text-sm font-semibold border border-grafite-600">
+                        Entrar
+                    </button>
+                    <!-- Quick Search -->
+                    <div class="relative hidden md:block w-64">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                        </span>
+                        <input type="text" placeholder="Buscar rotas, atletas, gear..." class="w-full bg-grafite-700 text-sm text-slate-200 pl-9 pr-4 py-2 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime transition-all">
+                    </div>
+
+                    <!-- Notifications Button -->
+                    <button onclick="openNotificationsModal()" class="relative p-2.5 rounded-xl bg-grafite-700 text-slate-300 hover:text-white hover:bg-grafite-600 transition-all border border-grafite-600">
+                        <i class="fa-regular fa-bell text-lg"></i>
+                        <span class="absolute top-2 right-2 w-2 h-2 rounded-full bg-lime"></span>
+                    </button>
+
+                    <!-- Primary Action Button -->
+                    <button onclick="openQuickActionModal()" class="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-lime hover:bg-lime-hover text-grafite-900 font-bold text-sm transition-all shadow-lg shadow-lime/20">
+                        <i class="fa-solid fa-plus text-xs"></i>
+                        <span>Nova Atividade</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Dynamic View Container -->
+            <main id="main-content" class="flex-1 overflow-y-auto bg-grafite-800 p-6 lg:p-10">
+                <!-- Content injected dynamically via JavaScript -->
+            </main>
+        </div>
+    </div>
+
+    <div id="global-modal" class="safe-area-modal fixed inset-0 z-50 hidden items-center justify-center bg-grafite-900/80 backdrop-blur-sm">
+        <div class="glass-panel w-full max-w-lg rounded-2xl p-6 border border-grafite-600 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+            <div class="flex items-center justify-between pb-4 border-b border-grafite-600">
+                <h3 id="modal-title" class="text-lg font-bold text-white">Título do Modal</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white p-2">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div id="modal-body" class="py-6 space-y-4">
+                <!-- Dynamic Modal Content -->
+            </div>
+            <div id="modal-footer" class="flex items-center justify-end gap-3 pt-4 border-t border-grafite-600">
+                <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-grafite-700 hover:bg-grafite-600 text-slate-300 text-sm font-medium transition-all">Cancelar</button>
+                <button id="modal-confirm-btn" onclick="closeModal(); showToast('Ação realizada com sucesso!', 'success')" class="px-5 py-2 rounded-xl bg-lime hover:bg-lime-hover text-grafite-900 text-sm font-bold transition-all">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="./src/supabase.js"></script>
+    <script>
+        // Mock State Data
+        const state = {
+            currentView: 'landing',
+            user: {
+                name: 'Marcus Silva',
+                handle: '@marcus_ride',
+                level: 'Pro Rider',
+                stats: {
+                    distance: '1,420 km',
+                    elevation: '24,800 m',
+                    rides: '58',
+                    kom: '12'
+                }
+            },
+            activities: [],
+            bicycles: [],
+            activeActivity: null,
+            gpsPoints: [],
+            pendingGpsPoints: [],
+            gpsWatchId: null,
+            gpsSignalLost: false,
+            gpsCurrentSpeedMps: 0,
+            gpsSpeedSamples: [],
+            gpsAccuracyMeters: null,
+            gpsLastPositionAt: null,
+            screenWakeLock: null,
+            gpsSaveQueue: Promise.resolve(),
+            trackingTimer: null,
+            backgroundRecordingWarning: false,
+            authUser: null,
+            routes: [
+                { id: 1, name: 'Serra do Rio do Rastro', location: 'Santa Catarina, BR', distance: '24.2 km', elevation: '1,240 m', difficulty: 'Extrema', rating: '4.9', image: 'https://placehold.co/600x400/1C2026/B7F34A?text=Serra+Rastro' },
+                { id: 2, name: 'Trilha dos Canions', location: 'Cambará do Sul, RS', distance: '48.5 km', elevation: '850 m', difficulty: 'Moderada', rating: '4.8', image: 'https://placehold.co/600x400/1C2026/B7F34A?text=Canions+RS' },
+                { id: 3, name: 'Volta das Hortênsias', location: 'Gramado, RS', distance: '65.0 km', elevation: '1,100 m', difficulty: 'Avançada', rating: '4.7', image: 'https://placehold.co/600x400/1C2026/B7F34A?text=Hortensias' },
+                { id: 4, name: 'Gravel Ruta 40 Brasil', location: 'São Joaquim, SC', distance: '92.4 km', elevation: '1,650 m', difficulty: 'Extrema', rating: '5.0', image: 'https://placehold.co/600x400/1C2026/B7F34A?text=Gravel+Serrana' }
+            ],
+            pointsOfInterest: [
+                { name: 'Mirante da Serra do Rio do Rastro', type: 'Mirante', coordinates: [-28.3958, -49.5506] },
+                { name: 'Bom Jardim da Serra', type: 'Ponto de apoio', coordinates: [-28.337, -49.63] },
+                { name: 'Urubici', type: 'Destino outdoor', coordinates: [-28.015, -49.592] },
+                { name: 'São Joaquim', type: 'Destino outdoor', coordinates: [-28.293, -49.931] }
+            ],
+            community: [
+                { id: 1, author: 'Juliana Costa', time: 'Há 2 horas', content: 'Conquistamos o topo da Serra do Rastro com o novo setup gravel! Visual incrível e temperatura perfeita.', likes: 142, comments: 24, image: 'https://placehold.co/600x350/1C2026/B7F34A?text=Post+Juliana' },
+                { id: 2, author: 'Carlos Eduardo', time: 'Há 5 horas', content: 'Testando os novos pneus tubeless 45mm na lama de Cambará. A aderência superou todas as expectativas.', likes: 89, comments: 12, image: 'https://placehold.co/600x350/1C2026/B7F34A?text=Post+Carlos' }
+            ],
+        };
+
+        let landingMap = null;
+        let activityMap = null;
+        let activityTrackLine = null;
+        let activityPositionMarker = null;
+        let activityMapActivityId = null;
+        let editingActivityId = null;
+        let editingBicycleId = null;
+
+        // Navigation Switcher
+        function switchView(viewName) {
+            state.currentView = viewName;
+            
+            // Update active state in sidebar
+            document.querySelectorAll('aside button[id^="nav-"]').forEach(btn => {
+                btn.classList.remove('bg-grafite-700', 'text-white', 'border-l-4', 'border-lime');
+                btn.classList.add('text-slate-300');
+            });
+            const activeBtn = document.getElementById(`nav-${viewName}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-300');
+                activeBtn.classList.add('bg-grafite-700', 'text-white');
+            }
+
+            // Update Header Title
+            const titles = {
+                landing: { title: 'Landing Page RIDE X', subtitle: 'Design system outdoor premium e apresentação' },
+                dashboard: { title: 'Dashboard Geral', subtitle: 'Visão panorâmica de desempenho e métricas' },
+                routes: { title: 'Trilhas & Rotas Pro', subtitle: 'Explore trajetos mapeados para aventura' },
+                community: { title: 'Comunidade Outdoor', subtitle: 'Conecte-se com atletas e compartilhe conquistas' },
+                equipment: { title: 'Minhas Bicicletas', subtitle: 'Cadastre e gerencie suas bicicletas' },
+                settings: { title: 'Configurações da Conta', subtitle: 'Preferências de perfil, tema e integração GPS' }
+            };
+
+            if (titles[viewName]) {
+                document.getElementById('view-title').innerText = titles[viewName].title;
+                document.getElementById('view-subtitle').innerText = titles[viewName].subtitle;
+            }
+
+            // Render view content
+            renderContent();
+
+            // Close mobile sidebar if open
+            const sidebar = document.getElementById('sidebar');
+            if (!sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.add('-translate-x-full');
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('-translate-x-full');
+        }
+
+        // Render Content Dispatcher
+        function renderContent() {
+            const main = document.getElementById('main-content');
+            if (landingMap) {
+                landingMap.remove();
+                landingMap = null;
+            }
+            switch (state.currentView) {
+                case 'landing':
+                    main.innerHTML = renderLandingPage();
+                    initializeLandingMap();
+                    break;
+                case 'dashboard':
+                    main.innerHTML = renderDashboardView();
+                    break;
+                case 'routes':
+                    main.innerHTML = renderRoutesView();
+                    break;
+                case 'community':
+                    main.innerHTML = renderCommunityView();
+                    break;
+                case 'equipment':
+                    main.innerHTML = renderEquipmentView();
+                    break;
+                case 'settings':
+                    main.innerHTML = renderSettingsView();
+                    break;
+                default:
+                    main.innerHTML = renderDashboardView();
+            }
+        }
+
+        // 1. Landing Page HTML Generator
+        function renderLandingPage() {
+            return `
+                <div class="space-y-16 pb-12 animate-in fade-in duration-300">
+                    <!-- Hero Section -->
+                    <div class="relative rounded-3xl overflow-hidden glass-panel p-8 lg:p-16 border border-lime/20 bg-gradient-to-br from-grafite-700/80 via-grafite-900/90 to-grafite-800">
+                        <div class="absolute -right-20 -top-20 w-96 h-96 bg-lime/10 rounded-full blur-3xl pointer-events-none"></div>
+                        <div class="max-w-3xl relative z-10 space-y-6">
+                            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-lime/10 border border-lime/30 text-lime text-xs font-bold uppercase tracking-widest">
+                                <i class="fa-solid fa-sparkles"></i> RIDE X Stage 1 Released
+                            </div>
+                            <h1 class="text-4xl lg:text-6xl font-black text-white tracking-tight leading-none">
+                                O Ecossistema Definitivo para <span class="text-lime text-glow">Ciclismo Outdoor</span>
+                            </h1>
+                            <p class="text-slate-300 text-base lg:text-lg leading-relaxed">
+                                Desenvolvido para atletas extremos e exploradores que exigem precisão, design sofisticado e dados em tempo real. Conecte sua bike, conquiste rotas e supere seus limites.
+                            </p>
+                            <div class="flex flex-wrap items-center gap-4 pt-4">
+                                <button onclick="switchView('dashboard')" class="px-8 py-4 rounded-2xl bg-lime hover:bg-lime-hover text-grafite-900 font-extrabold text-base transition-all shadow-xl shadow-lime/20 flex items-center gap-3">
+                                    <span>Acessar Plataforma</span>
+                                    <i class="fa-solid fa-arrow-right"></i>
+                                </button>
+                                <button onclick="switchView('routes')" class="px-8 py-4 rounded-2xl bg-grafite-700 hover:bg-grafite-600 text-white font-bold text-base transition-all border border-grafite-500">
+                                    Explorar Rotas
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mini Map & Points of Interest -->
+                    <section class="space-y-6">
+                        <div>
+                            <h2 class="text-2xl font-bold text-white">Explore a Serra Catarinense</h2>
+                            <p class="text-sm text-slate-400">Visualize a região e encontre pontos de interesse para sua próxima aventura</p>
+                        </div>
+                        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                            <div class="xl:col-span-2 glass-panel rounded-2xl border border-grafite-600 overflow-hidden">
+                                <div id="home-map" role="application" aria-label="Mapa interativo da Serra Catarinense"></div>
+                                <p id="map-status" class="px-4 py-2 text-xs text-slate-400" aria-live="polite">Carregando mapa...</p>
+                            </div>
+                            <div class="glass-panel p-6 rounded-2xl border border-grafite-600">
+                                <h3 class="text-lg font-bold text-white mb-4">Pontos de interesse</h3>
+                                <div class="space-y-3">
+                                    ${state.pointsOfInterest.map((point, index) => `
+                                        <button onclick="focusMapPoint(${index})" class="w-full flex items-start gap-3 rounded-xl p-3 text-left hover:bg-grafite-700 transition-colors">
+                                            <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-lime/10 text-lime">
+                                                <i class="fa-solid ${index === 0 ? 'fa-binoculars' : index === 1 ? 'fa-gas-pump' : 'fa-mountain'}"></i>
+                                            </span>
+                                            <span>
+                                                <span class="block text-sm font-semibold text-white">${point.name}</span>
+                                                <span class="block text-xs text-slate-400">${point.type}</span>
+                                            </span>
+                                        </button>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Design System Highlights -->
+                    <div class="space-y-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-2xl font-bold text-white">Design System & Pilares</h2>
+                                <p class="text-sm text-slate-400">Identidade visual premium inspirada em ambientes outdoor extremos</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-4 glass-panel-hover transition-all">
+                                <div class="w-12 h-12 rounded-xl bg-lime/10 text-lime flex items-center justify-center text-xl font-bold">
+                                    <i class="fa-solid fa-palette"></i>
+                                </div>
+                                <h3 class="text-lg font-bold text-white">Verde-Limão Vibrante</h3>
+                                <p class="text-sm text-slate-400 leading-relaxed">
+                                    Utilização estratégica da cor <code class="text-lime font-mono">#B7F34A</code> para destacar CTAs, indicadores de alta performance e alertas vitais.
+                                </p>
+                            </div>
+
+                            <div class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-4 glass-panel-hover transition-all">
+                                <div class="w-12 h-12 rounded-xl bg-lime/10 text-lime flex items-center justify-center text-xl font-bold">
+                                    <i class="fa-solid fa-moon"></i>
+                                </div>
+                                <h3 class="text-lg font-bold text-white">Fundo Grafite Profundo</h3>
+                                <p class="text-sm text-slate-400 leading-relaxed">
+                                    Paleta escura (<code class="text-slate-200 font-mono">#121417</code> e <code class="text-slate-200 font-mono">#1C2026</code>) que reduz fadiga visual e realça o contraste outdoor.
+                                </p>
+                            </div>
+
+                            <div class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-4 glass-panel-hover transition-all">
+                                <div class="w-12 h-12 rounded-xl bg-lime/10 text-lime flex items-center justify-center text-xl font-bold">
+                                    <i class="fa-solid fa-layer-group"></i>
+                                </div>
+                                <h3 class="text-lg font-bold text-white">Glassmorphism & Cards</h3>
+                                <p class="text-sm text-slate-400 leading-relaxed">
+                                    Painéis translúcidos com desfoque refinado, bordas iluminadas e hierarquia visual impecável para leitura dinâmica.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Featured Routes Preview -->
+                    <div class="space-y-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-2xl font-bold text-white">Trilhas em Destaque</h2>
+                                <p class="text-sm text-slate-400">Rotas mais populares avaliadas pela comunidade RIDE X</p>
+                            </div>
+                            <button onclick="switchView('routes')" class="text-lime text-sm font-semibold hover:underline flex items-center gap-1">
+                                Ver todas <i class="fa-solid fa-chevron-right text-xs"></i>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                            ${state.routes.map(r => `
+                                <div class="glass-panel rounded-2xl overflow-hidden border border-grafite-600 glass-panel-hover transition-all flex flex-col">
+                                    <div class="h-48 relative overflow-hidden bg-grafite-900">
+                                        <img src="${r.image}" alt="${r.name}" class="w-full h-full object-cover opacity-80 hover:scale-105 transition-transform duration-500">
+                                        <span class="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-grafite-900/80 backdrop-blur text-xs font-bold text-lime border border-grafite-600">
+                                            <i class="fa-solid fa-star text-xs"></i> ${r.rating}
+                                        </span>
+                                    </div>
+                                    <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
+                                        <div>
+                                            <span class="text-xs text-slate-400 font-medium">${r.location}</span>
+                                            <h4 class="text-base font-bold text-white mt-1">${r.name}</h4>
+                                        </div>
+                                        <div class="flex items-center justify-between pt-3 border-t border-grafite-600 text-xs text-slate-300">
+                                            <span><i class="fa-solid fa-route text-lime"></i> ${r.distance}</span>
+                                            <span><i class="fa-solid fa-mountain text-lime"></i> ${r.elevation}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 2. Dashboard View HTML Generator
+        function renderDashboardView() {
+            return `
+                <div class="space-y-8 animate-in fade-in duration-300">
+                    <!-- Stat Grid -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-2">
+                            <div class="flex items-center justify-between text-slate-400">
+                                <span class="text-xs font-semibold uppercase tracking-wider">Distância Total</span>
+                                <i class="fa-solid fa-route text-lime text-lg"></i>
+                            </div>
+                            <div class="text-3xl font-black text-white">${state.activities.reduce((total, activity) => total + Number(activity.distance_km || 0), 0).toFixed(1)} km</div>
+                            <p class="text-xs text-slate-400 font-medium">Total das atividades registradas</p>
+                        </div>
+
+                        <div class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-2">
+                            <div class="flex items-center justify-between text-slate-400">
+                                <span class="text-xs font-semibold uppercase tracking-wider">Elevação Acumulada</span>
+                                <i class="fa-solid fa-mountain text-lime text-lg"></i>
+                            </div>
+                            <div class="text-3xl font-black text-white">${state.activities.reduce((total, activity) => total + Number(activity.elevation_m || 0), 0).toLocaleString('pt-BR')} m</div>
+                            <p class="text-xs text-lime font-medium">Elevação registrada</p>
+                        </div>
+
+                        <div class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-2">
+                            <div class="flex items-center justify-between text-slate-400">
+                                <span class="text-xs font-semibold uppercase tracking-wider">Atividades Realizadas</span>
+                                <i class="fa-solid fa-bicycle text-lime text-lg"></i>
+                            </div>
+                            <div class="text-3xl font-black text-white">${state.activities.length}</div>
+                            <p class="text-xs text-slate-400 font-medium">${state.authUser ? 'Atividades da sua conta' : 'Pedaladas neste dispositivo'}</p>
+                        </div>
+
+                        <div class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-2">
+                            <div class="flex items-center justify-between text-slate-400">
+                                <span class="text-xs font-semibold uppercase tracking-wider">KOMs Conquistados</span>
+                                <i class="fa-solid fa-trophy text-lime text-lg"></i>
+                            </div>
+                            <div class="text-3xl font-black text-white">—</div>
+                            <p class="text-xs text-slate-400 font-medium">Sem dados registrados</p>
+                        </div>
+                    </div>
+
+                    <!-- Main Dashboard Split -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <!-- Activity Feed / Chart simulation -->
+                        <div class="hidden lg:col-span-2 glass-panel p-6 rounded-2xl border border-grafite-600 space-y-6">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-lg font-bold text-white">Desempenho Semanal (Potência & Frequência)</h3>
+                                <select class="bg-grafite-700 text-xs text-slate-300 px-3 py-1.5 rounded-xl border border-grafite-600 focus:outline-none">
+                                    <option>Últimos 7 dias</option>
+                                    <option>Último mês</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Simulated Chart Bars -->
+                            <div class="h-64 flex items-end justify-between gap-3 pt-8 pb-4 px-4 bg-grafite-900/50 rounded-xl border border-grafite-600/50">
+                                <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                                    <span class="text-[10px] text-lime opacity-0 group-hover:opacity-150 transition-opacity font-bold">240W</span>
+                                    <div class="w-full bg-grafite-600 group-hover:bg-lime transition-colors rounded-t-lg h-[45%]"></div>
+                                    <span class="text-xs text-slate-400">Seg</span>
+                                </div>
+                                <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                                    <span class="text-[10px] text-lime opacity-0 group-hover:opacity-100 transition-opacity font-bold">285W</span>
+                                    <div class="w-full bg-grafite-600 group-hover:bg-lime transition-colors rounded-t-lg h-[70%]"></div>
+                                    <span class="text-xs text-slate-400">Ter</span>
+                                </div>
+                                <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                                    <span class="text-[10px] text-lime opacity-0 group-hover:opacity-100 transition-opacity font-bold">310W</span>
+                                    <div class="w-full bg-grafite-600 group-hover:bg-lime transition-colors rounded-t-lg h-[85%]"></div>
+                                    <span class="text-xs text-slate-400">Qua</span>
+                                </div>
+                                <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                                    <span class="text-[10px] text-lime opacity-0 group-hover:opacity-100 transition-opacity font-bold">190W</span>
+                                    <div class="w-full bg-grafite-600 group-hover:bg-lime transition-colors rounded-t-lg h-[35%]"></div>
+                                    <span class="text-xs text-slate-400">Qui</span>
+                                </div>
+                                <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                                    <span class="text-[10px] text-lime opacity-0 group-hover:opacity-100 transition-opacity font-bold">340W</span>
+                                    <div class="w-full bg-grafite-600 group-hover:bg-lime transition-colors rounded-t-lg h-[95%]"></div>
+                                    <span class="text-xs text-slate-400">Sex</span>
+                                </div>
+                                <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                                    <span class="text-[10px] text-lime opacity-0 group-hover:opacity-100 transition-opacity font-bold">380W</span>
+                                    <div class="w-full bg-grafite-600 group-hover:bg-lime transition-colors rounded-t-lg h-[100%]"></div>
+                                    <span class="text-xs text-slate-400">Sáb</span>
+                                </div>
+                                <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                                    <span class="text-[10px] text-lime opacity-0 group-hover:opacity-100 transition-opacity font-bold">220W</span>
+                                    <div class="w-full bg-grafite-600 group-hover:bg-lime transition-colors rounded-t-lg h-[50%]"></div>
+                                    <span class="text-xs text-slate-400">Dom</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Weather & Outdoor Conditions -->
+                        <div class="hidden glass-panel p-6 rounded-2xl border border-grafite-600 space-y-6 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between pb-4 border-b border-grafite-600">
+                                    <h3 class="text-lg font-bold text-white">Condições Outdoor</h3>
+                                    <span class="text-xs px-2.5 py-1 rounded-full bg-lime/10 text-lime font-bold">Ideal para Pedal</span>
+                                </div>
+                                <div class="py-6 space-y-4">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <i class="fa-solid fa-temperature-three-quarters text-lime text-xl"></i>
+                                            <span class="text-sm text-slate-300">Temperatura</span>
+                                        </div>
+                                        <span class="font-bold text-white">22°C (Sensação 21°C)</span>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <i class="fa-solid fa-wind text-lime text-xl"></i>
+                                            <span class="text-sm text-slate-300">Vento</span>
+                                        </div>
+                                        <span class="font-bold text-white">12 km/h (Sudoeste)</span>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <i class="fa-solid fa-droplet text-lime text-xl"></i>
+                                            <span class="text-sm text-slate-300">Umidade do Ar</span>
+                                        </div>
+                                        <span class="font-bold text-white">64%</span>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <i class="fa-solid fa-cloud-sun text-lime text-xl"></i>
+                                            <span class="text-sm text-slate-300">Índice UV</span>
+                                        </div>
+                                        <span class="font-bold text-white">Moderado (4)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onclick="showToast('Sincronizando dados meteorológicos...', 'success')" class="w-full py-3 rounded-xl bg-grafite-700 hover:bg-grafite-600 text-white font-semibold text-sm transition-all border border-grafite-600">
+                                Atualizar Estação GPS
+                            </button>
+                        </div>
+                        <div class="lg:col-span-3 glass-panel p-6 rounded-2xl border border-grafite-600">
+                            <h3 class="text-lg font-bold text-white">Dados de desempenho e clima</h3>
+                            <p class="mt-2 text-sm text-slate-400">Potência, frequência cardíaca e condições meteorológicas não estão disponíveis sem sensores ou uma integração conectada. Nenhum valor de demonstração é exibido.</p>
+                        </div>
+                    </div>
+
+                    <section class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-4">
+                        <div class="flex items-center justify-between gap-4">
+                            <div>
+                                <h3 class="text-lg font-bold text-white">Suas atividades</h3>
+                                <p class="text-xs text-slate-400">${state.authUser ? 'Histórico sincronizado com sua conta' : 'Pedaladas de teste salvas neste navegador'}</p>
+                            </div>
+                            <button onclick="openActivityModal()" class="px-4 py-2 rounded-xl bg-lime hover:bg-lime-hover text-grafite-900 text-sm font-bold">
+                                <i class="fa-solid fa-plus mr-1"></i> Registrar
+                            </button>
+                        </div>
+                        ${renderActivityList()}
+                    </section>
+                    <section class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-3">
+                        <div>
+                            <h3 class="text-lg font-bold text-white">Importar pedalada GPX</h3>
+                            <p class="text-xs text-slate-400">Selecione um arquivo GPX de trilha. Horários e elevação só serão usados se existirem no arquivo.</p>
+                        </div>
+                        <label class="flex flex-col sm:flex-row sm:items-center gap-3">
+                            <span class="sr-only">Arquivo GPX</span>
+                            <input id="gpx-file" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" class="min-w-0 flex-1 text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-grafite-700 file:px-4 file:py-2 file:text-slate-200 hover:file:bg-grafite-600">
+                            <button onclick="importGpxFile()" class="px-4 py-2 rounded-xl bg-grafite-700 hover:bg-grafite-600 text-white text-sm font-semibold border border-grafite-600">
+                                <i class="fa-solid fa-file-import mr-2 text-lime"></i>Importar GPX
+                            </button>
+                        </label>
+                    </section>
+                </div>
+            `;
+        }
+
+        // 3. Routes View HTML Generator
+        function renderRoutesView() {
+            return `
+                <div class="space-y-6 animate-in fade-in duration-300">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div>
+                            <h2 class="text-2xl font-bold text-white">Explorar Trilhas & Rotas</h2>
+                            <p class="text-sm text-slate-400">Descubra trajetos mapeados e testados por atletas profissionais</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button onclick="showToast('Filtro de dificuldade aplicado.', 'info')" class="px-4 py-2 rounded-xl bg-grafite-700 hover:bg-grafite-600 text-slate-300 text-sm font-medium border border-grafite-600">
+                                <i class="fa-solid fa-filter mr-2 text-lime"></i> Filtrar
+                            </button>
+                            <button onclick="openNewRouteModal()" class="px-4 py-2 rounded-xl bg-lime hover:bg-lime-hover text-grafite-900 text-sm font-bold shadow-lg shadow-lime/20">
+                                <i class="fa-solid fa-plus mr-1"></i> Nova Rota
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+                        ${state.routes.map(r => `
+                            <div class="glass-panel p-6 rounded-2xl border border-grafite-600 flex flex-col md:flex-row gap-6 glass-panel-hover transition-all">
+                                <img src="${r.image}" alt="${r.name}" class="w-full md:w-48 h-48 rounded-xl object-cover border border-grafite-600">
+                                <div class="flex-1 flex flex-col justify-between space-y-4">
+                                    <div class="space-y-1">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs text-lime font-semibold uppercase tracking-wider">${r.difficulty}</span>
+                                            <span class="text-xs text-slate-400"><i class="fa-solid fa-star text-lime"></i> ${r.rating}</span>
+                                        </div>
+                                        <h3 class="text-lg font-bold text-white">${r.name}</h3>
+                                        <p class="text-xs text-slate-400"><i class="fa-solid fa-location-dot text-lime mr-1"></i> ${r.location}</p>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4 py-3 border-y border-grafite-600 text-xs text-slate-300">
+                                        <div>
+                                            <span class="block text-slate-500 font-medium">Distância</span>
+                                            <span class="font-bold text-white text-sm">${r.distance}</span>
+                                        </div>
+                                        <div>
+                                            <span class="block text-slate-500 font-medium">Elevação</span>
+                                            <span class="font-bold text-white text-sm">${r.elevation}</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center justify-end gap-3">
+                                        <button onclick="showToast('Baixando arquivo GPX para GPS...', 'success')" class="px-4 py-2 rounded-xl bg-grafite-700 hover:bg-grafite-600 text-slate-300 text-xs font-semibold border border-grafite-600">
+                                            <i class="fa-solid fa-download mr-1"></i> GPX
+                                        </button>
+                                        <button onclick="startActivity('${r.name}')" class="px-4 py-2 rounded-xl bg-lime hover:bg-lime-hover text-grafite-900 text-xs font-bold">
+                                            <i class="fa-solid fa-play mr-1"></i> Iniciar Rota
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 4. Community View HTML Generator
+        function renderCommunityView() {
+            return `
+                <div class="space-y-6 max-w-3xl mx-auto animate-in fade-in duration-300">
+                    <div class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-4">
+                        <textarea placeholder="Compartilhe sua última conquista ou foto de trilha..." rows="3" class="w-full bg-grafite-700 text-sm text-slate-200 p-4 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime resize-none"></textarea>
+                        <div class="flex items-center justify-between pt-2 border-t border-grafite-600">
+                            <div class="flex items-center gap-3 text-slate-400">
+                                <button onclick="showToast('Anexo de foto habilitado.', 'info')" class="hover:text-lime"><i class="fa-regular fa-image text-lg"></i></button>
+                                <button onclick="showToast('GPS Strava integrado.', 'info')" class="hover:text-lime"><i class="fa-solid fa-route text-lg"></i></button>
+                                <button onclick="showToast('Marcação de localização ativa.', 'info')" class="hover:text-lime"><i class="fa-solid fa-location-dot text-lg"></i></button>
+                            </div>
+                            <button onclick="showToast('Publicação enviada para o feed da comunidade!', 'success')" class="px-6 py-2.5 rounded-xl bg-lime hover:bg-lime-hover text-grafite-900 font-bold text-sm shadow-lg shadow-lime/20">
+                                Publicar
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-6">
+                        ${state.community.map(p => `
+                            <div class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <img src="https://placehold.co/100x100/1C2026/B7F34A?text=User" alt="Avatar" class="w-10 h-10 rounded-xl object-cover border border-lime/30">
+                                        <div>
+                                            <h4 class="text-sm font-bold text-white">${p.author}</h4>
+                                            <span class="text-xs text-slate-400">${p.time}</span>
+                                        </div>
+                                    </div>
+                                    <button class="text-slate-400 hover:text-white"><i class="fa-solid fa-ellipsis"></i></button>
+                                </div>
+                                <p class="text-sm text-slate-200 leading-relaxed">${p.content}</p>
+                                <div class="rounded-xl overflow-hidden border border-grafite-600 max-h-80">
+                                    <img src="${p.image}" alt="Post image" class="w-full h-full object-cover">
+                                </div>
+                                <div class="flex items-center justify-between pt-4 border-t border-grafite-600 text-xs text-slate-300">
+                                    <button onclick="showToast('Curtida registrada!', 'success')" class="flex items-center gap-2 hover:text-lime transition-colors">
+                                        <i class="fa-regular fa-heart text-base"></i> ${p.likes} Curtidas
+                                    </button>
+                                    <button class="flex items-center gap-2 hover:text-lime transition-colors">
+                                        <i class="fa-regular fa-comment text-base"></i> ${p.comments} Comentários
+                                    </button>
+                                    <button onclick="showToast('Link da publicação copiado.', 'success')" class="flex items-center gap-2 hover:text-lime transition-colors">
+                                        <i class="fa-solid fa-share text-base"></i> Compartilhar
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 5. Equipment View HTML Generator
+        function renderEquipmentView() {
+            return `
+                <div class="space-y-6 animate-in fade-in duration-300">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-2xl font-bold text-white">Minhas bicicletas</h2>
+                            <p class="text-sm text-slate-400">Bicicletas cadastradas na sua conta RIDE X</p>
+                        </div>
+                        <button onclick="openBicycleModal()" class="px-4 py-2.5 rounded-xl bg-lime hover:bg-lime-hover text-grafite-900 font-bold text-sm shadow-lg shadow-lime/20">
+                            <i class="fa-solid fa-plus mr-1"></i> Adicionar bicicleta
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        ${state.bicycles.map(bicycle => `
+                            <div class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-4 glass-panel-hover transition-all">
+                                <div class="flex items-start justify-between gap-3">
+                                    <span class="w-11 h-11 rounded-xl bg-lime/10 text-lime flex items-center justify-center"><i class="fa-solid fa-bicycle text-lg"></i></span>
+                                    <span class="text-xs text-slate-400 uppercase">${escapeHTML(bicycle.category)}</span>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-bold text-white">${escapeHTML(bicycle.name)}</h3>
+                                    <p class="text-sm text-slate-400">${escapeHTML([bicycle.brand, bicycle.model].filter(Boolean).join(' ')) || 'Marca/modelo não informados'}</p>
+                                </div>
+                                <div class="text-sm text-slate-300 border-t border-grafite-600 pt-3">
+                                    ${bicycle.model_year ? `${escapeHTML(String(bicycle.model_year))} · ` : ''}${Number(bicycle.odometer_km).toLocaleString('pt-BR')} km
+                                </div>
+                                <div class="flex gap-2">
+                                    <button onclick="openBicycleModal('${bicycle.id}')" class="flex-1 py-2 rounded-lg bg-grafite-700 hover:bg-grafite-600 text-white text-xs font-semibold">Editar</button>
+                                    <button onclick="deleteBicycle('${bicycle.id}')" class="px-3 py-2 rounded-lg bg-red-950/50 hover:bg-red-900/70 text-red-300 text-xs font-semibold" aria-label="Excluir bicicleta"><i class="fa-solid fa-trash"></i></button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    ${state.bicycles.length === 0 ? renderEmptyState('Nenhuma bicicleta cadastrada', 'Adicione uma bicicleta para organizar seu equipamento.') : ''}
+                </div>
+            `;
+        }
+
+        // 6. Settings View HTML Generator
+        function renderSettingsView() {
+            return `
+                <div class="space-y-6 max-w-3xl mx-auto animate-in fade-in duration-300">
+                    <div class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-6">
+                        <h3 class="text-lg font-bold text-white border-b border-grafite-600 pb-4">Perfil do Atleta</h3>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="text-xs text-slate-400 font-medium">Nome Completo</label>
+                                <input type="text" value="Marcus Silva" class="w-full bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime">
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-xs text-slate-400 font-medium">Handle / Apelido</label>
+                                <input type="text" value="@marcus_ride" class="w-full bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime">
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="text-xs text-slate-400 font-medium">Biografia / Objetivo Outdoor</label>
+                            <textarea rows="2" class="w-full bg-grafite-700 text-sm text-slate-200 p-4 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime resize-none">Explorador de gravel e trilhas de montanha. Em busca dos próximos 10.000 metros de elevação.</textarea>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-6">
+                        <h3 class="text-lg font-bold text-white border-b border-grafite-600 pb-4">Integrações de Dispositivos</h3>
+                        
+                        <div class="flex items-center justify-between py-3 border-b border-grafite-600/50">
+                            <div>
+                                <h4 class="text-sm font-semibold text-white">Garmin Connect</h4>
+                                <p class="text-xs text-slate-400">Sincronização automática de treinos e rotas GPS</p>
+                            </div>
+                            <span class="px-3 py-1 rounded-full bg-lime/10 text-lime text-xs font-bold">Conectado</span>
+                        </div>
+
+                        <div class="flex items-center justify-between py-3">
+                            <div>
+                                <h4 class="text-sm font-semibold text-white">Strava Beacon</h4>
+                                <p class="text-xs text-slate-400">Compartilhamento de localização em tempo real com familiares</p>
+                            </div>
+                            <span class="px-3 py-1 rounded-full bg-grafite-700 text-slate-400 text-xs font-bold border border-grafite-600">Desconectado</span>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-3">
+                        <button onclick="showToast('Alterações salvas com sucesso!', 'success')" class="px-6 py-3 rounded-xl bg-lime hover:bg-lime-hover text-grafite-900 font-bold text-sm shadow-lg shadow-lime/20">
+                            Salvar Alterações
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function initializeLandingMap() {
+            const mapElement = document.getElementById('home-map');
+            const status = document.getElementById('map-status');
+            if (!window.L) {
+                status.textContent = 'Não foi possível carregar o mapa. Verifique sua conexão e tente novamente.';
+                return;
+            }
+
+            landingMap = L.map(mapElement).setView([-28.25, -49.7], 8);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
+                maxZoom: 18
+            }).addTo(landingMap);
+
+            state.pointsOfInterest.forEach(point => {
+                L.circleMarker(point.coordinates, {
+                    radius: 8,
+                    color: '#0B0D0F',
+                    weight: 2,
+                    fillColor: '#B7F34A',
+                    fillOpacity: 1
+                }).addTo(landingMap).bindPopup(`<strong>${point.name}</strong><br>${point.type}`);
+            });
+            status.textContent = 'Mapa da Serra Catarinense · Selecione um ponto para ver detalhes.';
+        }
+
+        function focusMapPoint(pointIndex) {
+            if (!landingMap || !state.pointsOfInterest[pointIndex]) {
+                return;
+            }
+            const point = state.pointsOfInterest[pointIndex];
+            landingMap.setView(point.coordinates, 11);
+        }
+
+        // Toast Notification System
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const borderColor = type === 'success' ? 'border-lime/40 text-lime' : 'border-sky-500/40 text-sky-400';
+            
+            toast.className = `glass-panel px-5 py-4 rounded-2xl border ${borderColor} shadow-2xl flex items-center gap-3 pointer-events-auto animate-in fade-in slide-in-from-bottom-5 duration-300`;
+            const icon = document.createElement('i');
+            icon.className = `fa-solid ${type === 'success' ? 'fa-circle-check' : 'fa-circle-info'} text-lg`;
+            const text = document.createElement('span');
+            text.className = 'text-sm font-semibold text-white';
+            text.textContent = message;
+            toast.append(icon, text);
+            
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'transition-opacity', 'duration-300');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // Modal Controllers
+        function disposeActivityMap() {
+            if (activityMap) activityMap.remove();
+            activityMap = null;
+            activityTrackLine = null;
+            activityPositionMarker = null;
+            activityMapActivityId = null;
+            if (state.trackingTimer) {
+                clearInterval(state.trackingTimer);
+                state.trackingTimer = null;
+            }
+        }
+
+        function openModal(title, bodyHTML) {
+            disposeActivityMap();
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-body').innerHTML = bodyHTML;
+            document.getElementById('modal-footer').classList.remove('hidden');
+            document.querySelector('#global-modal .glass-panel').classList.remove('max-w-4xl');
+            document.querySelector('#global-modal .glass-panel').classList.remove('max-w-5xl', 'max-h-[95vh]', 'overflow-y-auto');
+            document.querySelector('#global-modal .glass-panel').classList.add('max-w-lg');
+            const confirmButton = document.getElementById('modal-confirm-btn');
+            confirmButton.classList.remove('hidden');
+            confirmButton.textContent = 'Confirmar';
+            confirmButton.onclick = () => {
+                closeModal();
+                showToast('Ação realizada com sucesso!', 'success');
+            };
+            document.getElementById('global-modal').classList.remove('hidden');
+            document.getElementById('global-modal').classList.add('flex');
+        }
+
+        function setModalAction(label, action) {
+            const confirmButton = document.getElementById('modal-confirm-btn');
+            confirmButton.textContent = label;
+            confirmButton.onclick = action;
+        }
+
+        function closeModal() {
+            document.getElementById('global-modal').classList.add('hidden');
+            document.getElementById('global-modal').classList.remove('flex');
+            document.getElementById('modal-footer').classList.remove('hidden');
+            document.querySelector('#global-modal .glass-panel').classList.remove('max-w-4xl');
+            document.querySelector('#global-modal .glass-panel').classList.remove('max-w-5xl', 'max-h-[95vh]', 'overflow-y-auto');
+            document.querySelector('#global-modal .glass-panel').classList.add('max-w-lg');
+            disposeActivityMap();
+        }
+
+        function escapeHTML(value) {
+            return String(value ?? '').replace(/[&<>"']/g, character => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[character]);
+        }
+
+        function requireAuthenticatedUser() {
+            if (!window.rideXSupabase) {
+                showToast('Configure VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY para conectar ao Supabase.', 'info');
+                openAuthModal();
+                return false;
+            }
+            if (!state.authUser) {
+                openAuthModal();
+                return false;
+            }
+            return true;
+        }
+
+        function openAuthModal(mode = 'signin') {
+            state.authMode = mode;
+            if (!window.rideXSupabase) {
+                openModal('Configurar Supabase', `
+                    <p class="text-sm text-slate-300">Defina <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> no arquivo <code>.env.local</code> e reinicie o servidor de desenvolvimento.</p>
+                `);
+                setModalAction('Entendi', closeModal);
+                return;
+            }
+            renderAuthModal();
+        }
+
+        function renderAuthModal() {
+            const isSignup = state.authMode === 'signup';
+            openModal(isSignup ? 'Criar sua conta RIDE X' : 'Entrar na RIDE X', `
+                <div class="space-y-4">
+                    ${isSignup ? `<div><label for="auth-name" class="text-xs text-slate-400 font-medium">Nome</label><input id="auth-name" type="text" maxlength="80" autocomplete="name" class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>` : ''}
+                    <div><label for="auth-email" class="text-xs text-slate-400 font-medium">E-mail</label><input id="auth-email" type="email" maxlength="254" autocomplete="email" required class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>
+                    <div><label for="auth-password" class="text-xs text-slate-400 font-medium">Senha</label><input id="auth-password" type="password" minlength="8" maxlength="72" autocomplete="${isSignup ? 'new-password' : 'current-password'}" required class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>
+                    <button onclick="openAuthModal('${isSignup ? 'signin' : 'signup'}')" class="text-sm text-lime hover:underline">${isSignup ? 'Já tem uma conta? Entrar' : 'Não tem conta? Cadastre-se'}</button>
+                </div>
+            `);
+            setModalAction(isSignup ? 'Criar conta' : 'Entrar', submitAuthForm);
+        }
+
+        async function submitAuthForm() {
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value;
+            if (!email || password.length < 8) {
+                showToast('Informe um e-mail e uma senha com pelo menos 8 caracteres.', 'info');
+                return;
+            }
+            try {
+                let result;
+                if (state.authMode === 'signup') {
+                    const name = document.getElementById('auth-name').value.trim();
+                    if (!name || name.length > 80) {
+                        showToast('Informe seu nome (até 80 caracteres).', 'info');
+                        return;
+                    }
+                    result = await window.rideXSupabase.auth.signUp({
+                        email,
+                        password,
+                        options: { data: { full_name: name } }
+                    });
+                } else {
+                    result = await window.rideXSupabase.auth.signInWithPassword({ email, password });
+                }
+                if (result.error) throw result.error;
+                if (state.authMode === 'signup' && !result.data.session) {
+                    closeModal();
+                    showToast('Conta criada. Confirme seu e-mail para entrar.', 'success');
+                    return;
+                }
+                closeModal();
+                showToast(state.authMode === 'signup' ? 'Conta criada com sucesso.' : 'Login realizado com sucesso.', 'success');
+            } catch (error) {
+                console.error('Falha na autenticação Supabase:', error);
+                showToast(error.message || 'Não foi possível autenticar sua conta.', 'info');
+            }
+        }
+
+        async function signOut() {
+            if (!window.rideXSupabase) return;
+            if (state.activeActivity?.status === 'in_progress') await pauseActivity();
+            const { error } = await window.rideXSupabase.auth.signOut();
+            if (error) {
+                console.error('Falha ao sair da conta:', error);
+                showToast(error.message || 'Não foi possível encerrar a sessão.', 'info');
+                return;
+            }
+            showToast('Sessão encerrada com segurança.', 'success');
+        }
+
+        function updateAuthInterface() {
+            const name = state.authUser?.user_metadata?.full_name || state.authUser?.email || 'Visitante';
+            document.getElementById('profile-name').textContent = name;
+            document.getElementById('profile-status').innerHTML = state.authUser
+                ? '<i class="fa-solid fa-shield-halved text-[10px]"></i> Conta conectada'
+                : '<i class="fa-solid fa-user text-[10px]"></i> Entre para sincronizar';
+            document.getElementById('auth-action').innerHTML = state.authUser
+                ? '<i class="fa-solid fa-right-from-bracket"></i>'
+                : '<i class="fa-solid fa-right-to-bracket"></i>';
+            document.getElementById('auth-action').setAttribute('aria-label', state.authUser ? 'Sair da conta' : 'Entrar ou cadastrar');
+            document.getElementById('auth-action').onclick = state.authUser ? signOut : () => openAuthModal();
+            document.getElementById('header-auth-action').textContent = state.authUser ? 'Sair' : 'Entrar';
+            document.getElementById('header-auth-action').onclick = state.authUser ? signOut : () => openAuthModal();
+            syncActivityButton();
+        }
+
+        async function loadUserData() {
+            const localActivities = loadLocalActivities();
+            if (!state.authUser || !window.rideXSupabase) {
+                state.activities = localActivities;
+                state.bicycles = [];
+                state.activeActivity = localActivities.find(activity => activity.status === 'in_progress' || activity.status === 'paused') || null;
+                state.gpsPoints = state.activeActivity?.points || [];
+                state.pendingGpsPoints = [];
+                state.gpsCurrentSpeedMps = 0;
+                syncActivityButton();
+                return;
+            }
+            const [activitiesResult, bicyclesResult] = await Promise.all([
+                window.rideXSupabase.from('activities').select('*').order('started_at', { ascending: false }),
+                window.rideXSupabase.from('bicycles').select('*').order('created_at', { ascending: false })
+            ]);
+            if (activitiesResult.error) throw activitiesResult.error;
+            if (bicyclesResult.error) throw bicyclesResult.error;
+            state.activities = [...localActivities, ...activitiesResult.data];
+            state.bicycles = bicyclesResult.data;
+            state.activeActivity = localActivities.find(activity => activity.status === 'in_progress' || activity.status === 'paused')
+                || activitiesResult.data.find(activity => activity.tracking_mode === 'gps'
+                && (activity.status === 'in_progress' || activity.status === 'paused')) || null;
+            state.gpsPoints = state.activeActivity?.local_only
+                ? state.activeActivity.points || []
+                : state.activeActivity?.tracking_mode === 'gps'
+                ? await fetchActivityPoints(state.activeActivity.id)
+                : [];
+            state.pendingGpsPoints = state.activeActivity?.tracking_mode === 'gps' && !state.activeActivity.local_only
+                ? loadPendingGpsPoints(state.activeActivity.id)
+                : [];
+            state.gpsCurrentSpeedMps = 0;
+            syncActivityButton();
+        }
+
+        const LOCAL_ACTIVITIES_STORAGE_KEY = 'ride-x-local-activities';
+
+        function loadLocalActivities() {
+            try {
+                const stored = JSON.parse(localStorage.getItem(LOCAL_ACTIVITIES_STORAGE_KEY) || '[]');
+                if (!Array.isArray(stored)) throw new Error('O conteúdo salvo não é uma lista de atividades.');
+                return stored.filter(activity => activity && activity.local_only === true);
+            } catch (error) {
+                console.error('Falha ao recuperar pedaladas salvas neste dispositivo:', error);
+                throw new Error('Não foi possível ler as pedaladas salvas neste navegador.');
+            }
+        }
+
+        function persistLocalActivity() {
+            if (!state.activeActivity?.local_only) return;
+            const savedActivity = {
+                ...state.activeActivity,
+                points: state.gpsPoints.map(point => ({ ...point }))
+            };
+            state.activeActivity = savedActivity;
+            state.activities = [savedActivity, ...state.activities.filter(activity => activity.id !== savedActivity.id)];
+            try {
+                localStorage.setItem(LOCAL_ACTIVITIES_STORAGE_KEY, JSON.stringify(
+                    state.activities.filter(activity => activity.local_only)
+                ));
+            } catch (error) {
+                console.error('Falha ao salvar pedalada neste dispositivo:', error);
+                throw new Error('O navegador não conseguiu salvar a pedalada localmente. Verifique o espaço disponível.');
+            }
+        }
+
+        async function refreshUserData() {
+            try {
+                await loadUserData();
+                if (state.currentView === 'dashboard' || state.currentView === 'equipment') renderContent();
+                return true;
+            } catch (error) {
+                console.error('Falha ao carregar dados do usuário:', error);
+                showToast(error.message || 'Não foi possível carregar os dados da sua conta.', 'info');
+                return false;
+            }
+        }
+
+        function renderEmptyState(title, description) {
+            return `<div class="col-span-full rounded-2xl border border-dashed border-grafite-500 p-8 text-center"><i class="fa-solid fa-folder-open text-2xl text-slate-500"></i><p class="mt-3 font-semibold text-white">${escapeHTML(title)}</p><p class="mt-1 text-sm text-slate-400">${escapeHTML(description)}</p></div>`;
+        }
+
+        function renderActivityList() {
+            if (!state.authUser && state.activities.length === 0) return renderEmptyState('Nenhuma pedalada salva neste dispositivo', 'Inicie uma pedalada para registrar o percurso. Sem login, os dados ficam salvos somente neste navegador.');
+            if (state.activities.length === 0) return renderEmptyState('Nenhuma atividade registrada', 'Inicie uma atividade pelo botão flutuante ou registre uma atividade manualmente.');
+            return `<div class="space-y-3">${state.activities.map(activity => `
+                <article class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl bg-grafite-900/60 p-4 border border-grafite-600">
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h4 class="font-semibold text-white">${escapeHTML(activity.name)}</h4>
+                            <span class="rounded-full px-2 py-0.5 text-[10px] font-bold ${activity.status === 'in_progress' ? 'bg-lime/10 text-lime' : 'bg-grafite-700 text-slate-300'}">${activity.status === 'in_progress' ? 'Em andamento' : activity.status === 'paused' ? 'Pausada' : 'Concluída'}</span>
+                            ${activity.local_only ? '<span class="rounded-full px-2 py-0.5 text-[10px] font-bold bg-sky-500/10 text-sky-300">Salva neste dispositivo</span>' : ''}
+                        </div>
+                        <p class="mt-1 text-xs text-slate-400">${new Date(activity.started_at).toLocaleString('pt-BR')} · ${Number(activity.distance_km).toLocaleString('pt-BR')} km · ${Number(activity.elevation_m).toLocaleString('pt-BR')} m</p>
+                        ${activity.notes ? `<p class="mt-1 text-sm text-slate-300">${escapeHTML(activity.notes)}</p>` : ''}
+                    </div>
+                    <div class="flex gap-2 shrink-0">
+                        ${activity.tracking_mode !== 'manual' ? `<button onclick="showActivityTrack('${activity.id}')" class="px-3 py-2 rounded-lg bg-grafite-700 hover:bg-grafite-600 text-lime text-xs font-semibold"><i class="fa-solid fa-map mr-1"></i>Mapa</button>` : ''}
+                        ${activity.local_only ? '' : `<button onclick="openActivityModal('${activity.id}')" class="px-3 py-2 rounded-lg bg-grafite-700 hover:bg-grafite-600 text-white text-xs font-semibold">Editar</button>
+                        <button onclick="deleteActivity('${activity.id}')" class="px-3 py-2 rounded-lg bg-red-950/50 hover:bg-red-900/70 text-red-300 text-xs font-semibold" aria-label="Excluir atividade"><i class="fa-solid fa-trash"></i></button>`}
+                    </div>
+                </article>
+            `).join('')}</div>`;
+        }
+
+        function syncActivityButton() {
+            const button = document.getElementById('activity-toggle');
+            if (!button) return;
+            const active = Boolean(state.activeActivity);
+            const label = !active ? 'Iniciar pedal' : state.activeActivity.status === 'paused' || state.gpsWatchId === null ? 'Retomar pedal' : 'Ver pedalada';
+            button.innerHTML = `<i class="fa-solid ${active ? 'fa-location-arrow' : 'fa-play'}"></i><span>${label}</span>`;
+            button.setAttribute('aria-label', label);
+            button.classList.toggle('bg-lime', !active);
+            button.classList.toggle('hover:bg-lime-hover', !active);
+            button.classList.toggle('bg-sky-300', active);
+            button.classList.toggle('hover:bg-sky-200', active);
+            button.classList.toggle('text-grafite-900', true);
+        }
+
+        function toDateTimeLocal(value) {
+            if (!value) return '';
+            const date = new Date(value);
+            return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        }
+
+        function openActivityModal(activityId = null, name = '') {
+            if (!requireAuthenticatedUser()) return;
+            const activity = state.activities.find(item => item.id === activityId);
+            editingActivityId = activity?.id || null;
+            const selectedName = activity?.name || name;
+            const isRecordedTrack = activity && activity.tracking_mode !== 'manual';
+            openModal(activity ? 'Editar atividade' : 'Registrar atividade', `
+                <div class="space-y-4">
+                    <div><label for="activity-name" class="text-xs text-slate-400 font-medium">Nome da atividade</label><input id="activity-name" maxlength="120" value="${escapeHTML(selectedName)}" required class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>
+                    ${isRecordedTrack ? `<p class="text-xs text-slate-400">Distância, horário e elevação são derivados do percurso registrado e não podem ser editados manualmente. <button onclick="showActivityTrack('${activity.id}')" class="text-lime hover:underline">Ver mapa</button></p>` : `<div class="grid grid-cols-2 gap-4">
+                        <div><label for="activity-distance" class="text-xs text-slate-400 font-medium">Distância (km)</label><input id="activity-distance" type="number" min="0" max="2000" step="0.01" value="${activity?.distance_km ?? 0}" required class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>
+                        <div><label for="activity-elevation" class="text-xs text-slate-400 font-medium">Elevação (m)</label><input id="activity-elevation" type="number" min="0" max="30000" step="1" value="${activity?.elevation_m ?? 0}" required class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>
+                    </div>
+                    <div><label for="activity-started" class="text-xs text-slate-400 font-medium">Início</label><input id="activity-started" type="datetime-local" value="${toDateTimeLocal(activity?.started_at || new Date().toISOString())}" required class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>
+                    <div><label for="activity-status" class="text-xs text-slate-400 font-medium">Status</label><select id="activity-status" onchange="toggleActivityEndField()" class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600"><option value="completed" ${activity?.status !== 'in_progress' ? 'selected' : ''}>Concluída</option>${activity?.status === 'in_progress' ? '<option value="in_progress" selected>Em andamento</option>' : ''}</select></div>
+                    <div id="activity-end-field"><label for="activity-ended" class="text-xs text-slate-400 font-medium">Término</label><input id="activity-ended" type="datetime-local" value="${toDateTimeLocal(activity?.ended_at || new Date().toISOString())}" class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>`}
+                    <div><label for="activity-notes" class="text-xs text-slate-400 font-medium">Observações</label><textarea id="activity-notes" maxlength="2000" rows="2" class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 p-3 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime">${escapeHTML(activity?.notes || '')}</textarea></div>
+                </div>
+            `);
+            if (!isRecordedTrack) toggleActivityEndField();
+            setModalAction(activity ? 'Salvar alterações' : 'Registrar atividade', saveActivity);
+        }
+
+        function toggleActivityEndField() {
+            const status = document.getElementById('activity-status');
+            const endField = document.getElementById('activity-end-field');
+            if (status && endField) endField.classList.toggle('hidden', status.value === 'in_progress');
+        }
+
+        async function saveActivity() {
+            const name = document.getElementById('activity-name').value.trim();
+            const existingActivity = state.activities.find(item => item.id === editingActivityId);
+            const notes = document.getElementById('activity-notes').value.trim();
+            if (existingActivity?.tracking_mode !== 'manual' && existingActivity) {
+                if (!name || name.length > 120 || notes.length > 2000) {
+                    showToast('Informe um nome de até 120 caracteres e observações de até 2.000 caracteres.', 'info');
+                    return;
+                }
+                try {
+                    const { data, error } = await window.rideXSupabase.from('activities')
+                        .update({ name, notes }).eq('id', editingActivityId).select('id').maybeSingle();
+                    if (error) throw error;
+                    if (!data) throw new Error('Atividade não encontrada ou operação não autorizada.');
+                    closeModal();
+                    if (!await refreshUserData()) return;
+                    showToast('Atividade atualizada.', 'success');
+                    editingActivityId = null;
+                } catch (error) {
+                    console.error('Falha ao atualizar atividade:', error);
+                    showToast(error.message || 'Não foi possível atualizar a atividade.', 'info');
+                }
+                return;
+            }
+            const startedAt = new Date(document.getElementById('activity-started').value);
+            const status = document.getElementById('activity-status').value;
+            const endedValue = document.getElementById('activity-ended').value;
+            const endedAt = status === 'completed' ? new Date(endedValue) : null;
+            const distanceValue = document.getElementById('activity-distance').value;
+            const elevationValue = document.getElementById('activity-elevation').value;
+            const distance = Number(distanceValue);
+            const elevation = Number(elevationValue);
+            if (!name || name.length > 120 || !Number.isFinite(startedAt.getTime())
+                || !distanceValue || !Number.isFinite(distance) || distance < 0 || distance > 2000
+                || !elevationValue || !Number.isInteger(elevation) || elevation < 0 || elevation > 30000
+                || (status === 'completed' && (!endedValue || !Number.isFinite(endedAt.getTime()) || endedAt < startedAt))) {
+                showToast('Confira nome, horários, distância e elevação. Os limites são 2.000 km e 30.000 m.', 'info');
+                return;
+            }
+            const payload = {
+                name,
+                activity_type: 'cycling',
+                status,
+                started_at: startedAt.toISOString(),
+                ended_at: endedAt ? endedAt.toISOString() : null,
+                distance_km: distance,
+                elevation_m: elevation,
+                notes
+            };
+            try {
+                const query = editingActivityId
+                    ? window.rideXSupabase.from('activities').update(payload).eq('id', editingActivityId)
+                    : window.rideXSupabase.from('activities').insert(payload);
+                const { data, error } = await query.select('id').maybeSingle();
+                if (error) throw error;
+                if (!data) throw new Error('Atividade não encontrada ou operação não autorizada.');
+                closeModal();
+                if (!await refreshUserData()) return;
+                showToast(editingActivityId ? 'Atividade atualizada.' : 'Atividade registrada.', 'success');
+                editingActivityId = null;
+            } catch (error) {
+                console.error('Falha ao salvar atividade:', error);
+                showToast(error.message || 'Não foi possível salvar a atividade.', 'info');
+            }
+        }
+
+        async function deleteActivity(activityId) {
+            if (!requireAuthenticatedUser()) return;
+            if (state.activeActivity?.id === activityId) {
+                showToast('Finalize a pedalada antes de excluí-la.', 'info');
+                return;
+            }
+            if (!window.confirm('Excluir esta atividade?')) return;
+            try {
+                const { data, error } = await window.rideXSupabase.from('activities').delete().eq('id', activityId).select('id').maybeSingle();
+                if (error) throw error;
+                if (!data) throw new Error('Atividade não encontrada ou operação não autorizada.');
+                if (!await refreshUserData()) return;
+                showToast('Atividade excluída.', 'success');
+            } catch (error) {
+                console.error('Falha ao excluir atividade:', error);
+                showToast(error.message || 'Não foi possível excluir a atividade.', 'info');
+            }
+        }
+
+        function openBicycleModal(bicycleId = null) {
+            if (!requireAuthenticatedUser()) return;
+            const bicycle = state.bicycles.find(item => item.id === bicycleId);
+            editingBicycleId = bicycle?.id || null;
+            openModal(bicycle ? 'Editar bicicleta' : 'Cadastrar bicicleta', `
+                <div class="space-y-4">
+                    <div><label for="bicycle-name" class="text-xs text-slate-400 font-medium">Nome para identificar</label><input id="bicycle-name" maxlength="120" value="${escapeHTML(bicycle?.name || '')}" required placeholder="Ex.: Minha gravel" class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label for="bicycle-brand" class="text-xs text-slate-400 font-medium">Marca</label><input id="bicycle-brand" maxlength="80" value="${escapeHTML(bicycle?.brand || '')}" class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>
+                        <div><label for="bicycle-model" class="text-xs text-slate-400 font-medium">Modelo</label><input id="bicycle-model" maxlength="120" value="${escapeHTML(bicycle?.model || '')}" class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label for="bicycle-category" class="text-xs text-slate-400 font-medium">Categoria</label><select id="bicycle-category" class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600">${[['gravel','Gravel'],['mountain','Mountain bike'],['road','Estrada'],['urban','Urbana'],['other','Outra']].map(([value,label]) => `<option value="${value}" ${bicycle?.category === value ? 'selected' : ''}>${label}</option>`).join('')}</select></div>
+                        <div><label for="bicycle-year" class="text-xs text-slate-400 font-medium">Ano do modelo</label><input id="bicycle-year" type="number" min="1885" max="2100" value="${bicycle?.model_year ?? ''}" class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>
+                    </div>
+                    <div><label for="bicycle-odometer" class="text-xs text-slate-400 font-medium">Quilometragem (km)</label><input id="bicycle-odometer" type="number" min="0" max="1000000" step="0.01" value="${bicycle?.odometer_km ?? 0}" class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>
+                    <div><label for="bicycle-notes" class="text-xs text-slate-400 font-medium">Observações</label><textarea id="bicycle-notes" maxlength="2000" rows="2" class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 p-3 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime">${escapeHTML(bicycle?.notes || '')}</textarea></div>
+                </div>
+            `);
+            setModalAction(bicycle ? 'Salvar alterações' : 'Cadastrar bicicleta', saveBicycle);
+        }
+
+        async function saveBicycle() {
+            const name = document.getElementById('bicycle-name').value.trim();
+            const brand = document.getElementById('bicycle-brand').value.trim();
+            const model = document.getElementById('bicycle-model').value.trim();
+            const yearValue = document.getElementById('bicycle-year').value;
+            const odometer = Number(document.getElementById('bicycle-odometer').value);
+            if (!name || name.length > 120 || brand.length > 80 || model.length > 120
+                || (yearValue && (!Number.isInteger(Number(yearValue)) || Number(yearValue) < 1885 || Number(yearValue) > 2100))
+                || !Number.isFinite(odometer) || odometer < 0 || odometer > 1000000) {
+                showToast('Confira o nome, o ano e a quilometragem da bicicleta.', 'info');
+                return;
+            }
+            const payload = {
+                name,
+                brand,
+                model,
+                category: document.getElementById('bicycle-category').value,
+                model_year: yearValue ? Number(yearValue) : null,
+                odometer_km: odometer,
+                notes: document.getElementById('bicycle-notes').value.trim()
+            };
+            try {
+                const query = editingBicycleId
+                    ? window.rideXSupabase.from('bicycles').update(payload).eq('id', editingBicycleId)
+                    : window.rideXSupabase.from('bicycles').insert(payload);
+                const { data, error } = await query.select('id').maybeSingle();
+                if (error) throw error;
+                if (!data) throw new Error('Bicicleta não encontrada ou operação não autorizada.');
+                closeModal();
+                if (!await refreshUserData()) return;
+                showToast(editingBicycleId ? 'Bicicleta atualizada.' : 'Bicicleta cadastrada.', 'success');
+                editingBicycleId = null;
+            } catch (error) {
+                console.error('Falha ao salvar bicicleta:', error);
+                showToast(error.message || 'Não foi possível salvar a bicicleta.', 'info');
+            }
+        }
+
+        async function deleteBicycle(bicycleId) {
+            if (!requireAuthenticatedUser() || !window.confirm('Excluir esta bicicleta?')) return;
+            try {
+                const { data, error } = await window.rideXSupabase.from('bicycles').delete().eq('id', bicycleId).select('id').maybeSingle();
+                if (error) throw error;
+                if (!data) throw new Error('Bicicleta não encontrada ou operação não autorizada.');
+                if (!await refreshUserData()) return;
+                showToast('Bicicleta excluída.', 'success');
+            } catch (error) {
+                console.error('Falha ao excluir bicicleta:', error);
+                showToast(error.message || 'Não foi possível excluir a bicicleta.', 'info');
+            }
+        }
+
+        const MAX_GPS_ACCURACY_METERS = 50;
+        const MAX_CYCLING_SPEED_METERS_PER_SECOND = 45;
+        const GPS_RECOVERY_STORAGE_PREFIX = 'ride-x-unsynced-gps:';
+
+        function gpsErrorMessage(error) {
+            if (error.code === 1) return 'A permissão de localização foi negada. Libere o acesso à localização nas configurações do navegador.';
+            if (error.code === 2) return 'O dispositivo não conseguiu obter uma posição. Verifique o GPS e tente novamente.';
+            if (error.code === 3) return 'A localização demorou para responder. O rastreamento continua tentando obter sinal.';
+            return error.message || 'Erro desconhecido ao acessar a localização.';
+        }
+
+        function ensureGeolocationAvailable() {
+            if (!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                throw new Error('A localização exige uma conexão segura (HTTPS) ou localhost.');
+            }
+            if (!navigator.geolocation) {
+                throw new Error('Este navegador não oferece suporte à geolocalização.');
+            }
+        }
+
+        function getCurrentPosition() {
+            ensureGeolocationAvailable();
+            return new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, error => reject(new Error(gpsErrorMessage(error))), {
+                    enableHighAccuracy: true,
+                    maximumAge: 0,
+                    timeout: 30000
+                });
+            });
+        }
+
+        function haversineMeters(first, second) {
+            const toRadians = degrees => degrees * Math.PI / 180;
+            const latitudeDifference = toRadians(second.latitude - first.latitude);
+            const longitudeDifference = toRadians(second.longitude - first.longitude);
+            const latitudeOne = toRadians(first.latitude);
+            const latitudeTwo = toRadians(second.latitude);
+            const haversine = Math.sin(latitudeDifference / 2) ** 2
+                + Math.cos(latitudeOne) * Math.cos(latitudeTwo) * Math.sin(longitudeDifference / 2) ** 2;
+            return 6371008.8 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+        }
+
+        function calculateTrackDistanceMeters(points) {
+            let distance = 0;
+            for (let index = 1; index < points.length; index += 1) {
+                if (!points[index].segment_start) distance += haversineMeters(points[index - 1], points[index]);
+            }
+            return distance;
+        }
+
+        function calculateTrackSummary(points) {
+            const distance = calculateTrackDistanceMeters(points);
+            let elevationGain = 0;
+            for (let index = 1; index < points.length; index += 1) {
+                const previous = points[index - 1];
+                const current = points[index];
+                if (!current.segment_start && Number.isFinite(previous.altitude_m) && Number.isFinite(current.altitude_m)) {
+                    elevationGain += Math.max(0, current.altitude_m - previous.altitude_m);
+                }
+            }
+            return {
+                distance_km: Number((distance / 1000).toFixed(2)),
+                elevation_m: Math.min(30000, Math.round(elevationGain))
+            };
+        }
+
+        function getVisibleGpsPoints() {
+            const points = new Map();
+            [...state.gpsPoints, ...state.pendingGpsPoints].forEach(point => points.set(point.sequence, point));
+            return [...points.values()].sort((first, second) => first.sequence - second.sequence);
+        }
+
+        function convertGpsPosition(position, segmentStart = false) {
+            const { latitude, longitude, accuracy, altitude } = position.coords;
+            state.gpsAccuracyMeters = Number.isFinite(accuracy) ? accuracy : null;
+            const timestamp = Number(position.timestamp);
+            if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90
+                || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+                return { error: 'Coordenadas GPS inválidas foram descartadas.' };
+            }
+            if (!Number.isFinite(accuracy) || accuracy <= 0 || accuracy > MAX_GPS_ACCURACY_METERS) {
+                return { error: `Precisão GPS insuficiente (limite: ${MAX_GPS_ACCURACY_METERS} m); aguardando sinal melhor.` };
+            }
+            if (!Number.isFinite(timestamp) || timestamp <= 0 || Math.abs(Date.now() - timestamp) > 120000) {
+                return { error: 'Uma posição GPS antiga foi descartada; aguardando uma leitura atual.' };
+            }
+            const point = {
+                latitude,
+                longitude,
+                accuracy_m: accuracy,
+                altitude_m: Number.isFinite(altitude) ? altitude : null,
+                recorded_at: new Date(timestamp).toISOString(),
+                segment_start: segmentStart,
+                source: 'gps'
+            };
+            return validateTrackPoint(point, [...state.gpsPoints, ...state.pendingGpsPoints], true);
+        }
+
+        function validateTrackPoint(point, priorPoints, checkSpeed) {
+            if (!Number.isFinite(point.latitude) || point.latitude < -90 || point.latitude > 90
+                || !Number.isFinite(point.longitude) || point.longitude < -180 || point.longitude > 180
+                || (point.accuracy_m !== null && point.accuracy_m !== undefined
+                    && (!Number.isFinite(point.accuracy_m) || point.accuracy_m < 0 || point.accuracy_m > MAX_GPS_ACCURACY_METERS))
+                || (point.altitude_m !== null && point.altitude_m !== undefined
+                    && (!Number.isFinite(point.altitude_m) || point.altitude_m < -12000 || point.altitude_m > 100000))) {
+                return { error: 'Um ponto GPS inválido foi descartado.' };
+            }
+            const previous = priorPoints[priorPoints.length - 1];
+            if (previous) {
+                const distance = haversineMeters(previous, point);
+                const accuracies = [previous.accuracy_m, point.accuracy_m].filter(Number.isFinite);
+                const noiseThreshold = Math.max(2, Math.min(10, accuracies.length
+                    ? accuracies.reduce((sum, value) => sum + value, 0) / accuracies.length * 0.5
+                    : 2));
+                if (distance < noiseThreshold && !point.segment_start) return { error: null, skip: true };
+                if (checkSpeed && !point.segment_start && previous.recorded_at && point.recorded_at) {
+                    const elapsed = (Date.parse(point.recorded_at) - Date.parse(previous.recorded_at)) / 1000;
+                    if (!Number.isFinite(elapsed) || elapsed <= 0) return { error: 'Uma posição GPS fora de ordem foi descartada.' };
+                    if (distance / elapsed > MAX_CYCLING_SPEED_METERS_PER_SECOND) {
+                        return { error: 'Um salto GPS incompatível com a velocidade de pedalada foi descartado.' };
+                    }
+                }
+            }
+            return { point };
+        }
+
+        function activityPointsStorageKey() {
+            return `${GPS_RECOVERY_STORAGE_PREFIX}${state.authUser.id}`;
+        }
+
+        function loadPendingGpsPoints(activityId) {
+            try {
+                const saved = JSON.parse(localStorage.getItem(activityPointsStorageKey()) || 'null');
+                return saved?.activityId === activityId && Array.isArray(saved.points) ? saved.points : [];
+            } catch (error) {
+                console.error('Falha ao recuperar pontos GPS locais:', error);
+                showToast('Não foi possível recuperar os pontos GPS ainda não sincronizados deste dispositivo.', 'info');
+                return [];
+            }
+        }
+
+        function persistPendingGpsPoints() {
+            if (state.activeActivity?.local_only) return;
+            try {
+                if (!state.pendingGpsPoints.length || !state.activeActivity) {
+                    localStorage.removeItem(activityPointsStorageKey());
+                    return;
+                }
+                localStorage.setItem(activityPointsStorageKey(), JSON.stringify({
+                    activityId: state.activeActivity.id,
+                    points: state.pendingGpsPoints
+                }));
+            } catch (error) {
+                console.error('Falha ao salvar recuperação local de GPS:', error);
+                showToast('O navegador não permitiu salvar a cópia local de recuperação GPS.', 'info');
+            }
+        }
+
+        async function fetchActivityPoints(activityId) {
+            const localActivity = state.activities.find(activity => activity.id === activityId && activity.local_only);
+            if (localActivity) return localActivity.points || [];
+            const allPoints = [];
+            const pageSize = 1000;
+            for (let offset = 0; ; offset += pageSize) {
+                const { data, error } = await window.rideXSupabase
+                    .from('activity_points')
+                    .select('sequence,latitude,longitude,accuracy_m,altitude_m,recorded_at,segment_start,source')
+                    .eq('activity_id', activityId)
+                    .order('sequence', { ascending: true })
+                    .range(offset, offset + pageSize - 1);
+                if (error) throw error;
+                allPoints.push(...data);
+                if (data.length < pageSize) break;
+            }
+            return allPoints;
+        }
+
+        async function persistTrackPoint(point) {
+            if (!state.activeActivity) throw new Error('Nenhuma atividade está ativa para receber pontos GPS.');
+            const valid = validateTrackPoint(point, [...state.gpsPoints, ...state.pendingGpsPoints], point.source === 'gps');
+            if (valid.error) {
+                if (!valid.skip) {
+                    state.gpsSignalLost = true;
+                    updateTrackingStatus(valid.error);
+                }
+                return;
+            }
+            if (valid.skip) return;
+
+            const sequence = Math.max(
+                state.gpsPoints.length,
+                ...state.pendingGpsPoints.map(pending => pending.sequence + 1)
+            );
+            const pending = { ...valid.point, sequence };
+            state.pendingGpsPoints.push(pending);
+            persistPendingGpsPoints();
+            updateTrackDisplay();
+            if (state.activeActivity.local_only) {
+                state.pendingGpsPoints = [];
+                state.gpsPoints.push(pending);
+                const summary = calculateTrackSummary(state.gpsPoints);
+                state.activeActivity = { ...state.activeActivity, ...summary };
+                persistLocalActivity();
+                state.gpsSignalLost = false;
+                updateTrackingStatus('GPS conectado · percurso salvo neste dispositivo');
+                updateTrackDisplay();
+                return;
+            }
+            const { error } = await window.rideXSupabase.from('activity_points').upsert({
+                ...pending,
+                activity_id: state.activeActivity.id,
+                user_id: state.authUser.id
+            }, { onConflict: 'activity_id,sequence', ignoreDuplicates: true });
+            if (error) throw error;
+
+            state.pendingGpsPoints = state.pendingGpsPoints.filter(item => item.sequence !== sequence);
+            state.gpsPoints.push(pending);
+            persistPendingGpsPoints();
+            const summary = calculateTrackSummary(state.gpsPoints);
+            const { data: updatedActivity, error: activityError } = await window.rideXSupabase.from('activities')
+                .update(summary).eq('id', state.activeActivity.id).select('id').maybeSingle();
+            if (activityError) throw activityError;
+            if (!updatedActivity) throw new Error('Pedalada não encontrada ou não autorizada.');
+            state.activeActivity = { ...state.activeActivity, ...summary };
+            state.gpsSignalLost = false;
+            updateTrackingStatus('GPS conectado · posição registrada');
+            updateTrackDisplay();
+        }
+
+        async function flushPendingGpsPoints() {
+            for (const point of [...state.pendingGpsPoints]) {
+                const { error } = await window.rideXSupabase.from('activity_points').upsert({
+                    ...point,
+                    activity_id: state.activeActivity.id,
+                    user_id: state.authUser.id
+                }, { onConflict: 'activity_id,sequence', ignoreDuplicates: true });
+                if (error) throw error;
+                if (!state.gpsPoints.some(saved => saved.sequence === point.sequence)) state.gpsPoints.push(point);
+                state.pendingGpsPoints = state.pendingGpsPoints.filter(item => item.sequence !== point.sequence);
+                persistPendingGpsPoints();
+            }
+            if (state.pendingGpsPoints.length === 0) {
+                const summary = calculateTrackSummary(state.gpsPoints);
+                const { data, error } = await window.rideXSupabase.from('activities').update(summary)
+                    .eq('id', state.activeActivity.id).select('id').maybeSingle();
+                if (error) throw error;
+                if (!data) throw new Error('Pedalada não encontrada ou não autorizada.');
+                state.activeActivity = { ...state.activeActivity, ...summary };
+            }
+        }
+
+        function updateTrackingStatus(message) {
+            const status = document.getElementById('tracking-status');
+            if (status) status.textContent = message;
+        }
+
+        function updateTrackDisplay(points = getVisibleGpsPoints(), activityId = state.activeActivity?.id) {
+            if (activityMapActivityId && activityId !== activityMapActivityId) return;
+            const distance = document.getElementById('tracking-distance');
+            const elevation = document.getElementById('tracking-elevation');
+            const summary = calculateTrackSummary(points);
+            if (distance) distance.textContent = `${summary.distance_km.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} km`;
+            if (elevation) elevation.textContent = `${summary.elevation_m.toLocaleString('pt-BR')} m`;
+            if (!activityMap || !window.L) return;
+            if (activityMapActivityId && activityId !== activityMapActivityId) return;
+            const segments = [];
+            for (const point of points) {
+                if (!segments.length || point.segment_start) segments.push([]);
+                segments[segments.length - 1].push([point.latitude, point.longitude]);
+            }
+            if (activityTrackLine) activityTrackLine.remove();
+            activityTrackLine = L.featureGroup(segments.filter(segment => segment.length > 1)
+                .map(segment => L.polyline(segment, { color: '#B7F34A', weight: 5, opacity: 0.9 }))).addTo(activityMap);
+            const latLngs = points.map(point => [point.latitude, point.longitude]);
+            if (latLngs.length) {
+                if (activityPositionMarker) activityPositionMarker.setLatLng(latLngs[latLngs.length - 1]);
+                else activityPositionMarker = L.circleMarker(latLngs[latLngs.length - 1], {
+                    radius: 7, color: '#0B0D0F', weight: 2, fillColor: '#B7F34A', fillOpacity: 1
+                }).addTo(activityMap);
+                activityMap.setView(latLngs[latLngs.length - 1], Math.max(activityMap.getZoom(), 15));
+            }
+        }
+
+        function initializeActivityMap(points, activityId) {
+            const mapElement = document.getElementById('tracking-metrics-map');
+            if (!mapElement) return;
+            if (!window.L) {
+                mapElement.textContent = 'Não foi possível carregar o mapa. Verifique sua conexão.';
+                return;
+            }
+            if (!points.length) {
+                mapElement.innerHTML = '<p class="p-6 text-sm text-slate-300">Aguardando um ponto GPS válido. Nenhuma localização foi inventada.</p>';
+                return;
+            }
+            const last = points[points.length - 1];
+            activityMap = L.map(mapElement).setView([last.latitude, last.longitude], 15);
+            activityMapActivityId = activityId;
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }).addTo(activityMap);
+            updateTrackDisplay(points, activityId);
+            if (activityTrackLine.getLayers().length) activityMap.fitBounds(activityTrackLine.getBounds(), { padding: [24, 24] });
+        }
+
+        function formatElapsedTime(activity) {
+            const started = Date.parse(activity.started_at);
+            if (!Number.isFinite(started)) return '00:00:00';
+            const seconds = getElapsedSeconds(activity);
+            const hours = String(Math.floor(seconds / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor(seconds % 3600 / 60)).padStart(2, '0');
+            return `${hours}:${minutes}:${String(seconds % 60).padStart(2, '0')}`;
+        }
+
+        function getElapsedSeconds(activity) {
+            const started = Date.parse(activity.started_at);
+            if (!Number.isFinite(started)) return 0;
+            const ended = activity.ended_at ? Date.parse(activity.ended_at) : Date.now();
+            let seconds = Math.max(0, Math.floor((ended - started) / 1000) - Number(activity.paused_seconds || 0));
+            if (activity.status === 'paused' && activity.paused_at) {
+                seconds -= Math.max(0, Math.floor((Date.now() - Date.parse(activity.paused_at)) / 1000));
+            }
+            return Math.max(0, seconds);
+        }
+
+        function getFinalPausedSeconds(activity, endedAt) {
+            const previousPausedSeconds = Number(activity.paused_seconds || 0);
+            if (activity.status !== 'paused' || !activity.paused_at) return previousPausedSeconds;
+            return previousPausedSeconds + Math.max(0, Math.floor((Date.parse(endedAt) - Date.parse(activity.paused_at)) / 1000));
+        }
+
+        function formatSpeedKmh(speedMps) {
+            return `${(Math.max(0, speedMps) * 3.6).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km/h`;
+        }
+
+        function updateElapsedTime(activity = state.activeActivity, points = getVisibleGpsPoints()) {
+            const target = document.getElementById('tracking-elapsed');
+            if (!activity) return;
+            if (target) target.textContent = formatElapsedTime(activity);
+            if (state.gpsLastPositionAt && Date.now() - state.gpsLastPositionAt > 15000) {
+                state.gpsCurrentSpeedMps = 0;
+                state.gpsSpeedSamples = [];
+            }
+            const currentSpeed = document.getElementById('tracking-speed');
+            if (currentSpeed) currentSpeed.textContent = activity.status === 'completed'
+                ? '—'
+                : formatSpeedKmh(state.gpsCurrentSpeedMps);
+            const averageSpeed = document.getElementById('tracking-average-speed');
+            if (averageSpeed) {
+                const elapsedSeconds = getElapsedSeconds(activity);
+                const distanceMeters = calculateTrackDistanceMeters(points);
+                averageSpeed.textContent = formatSpeedKmh(elapsedSeconds > 0 ? distanceMeters / elapsedSeconds : 0);
+            }
+            const accuracy = document.getElementById('tracking-accuracy');
+            if (accuracy) {
+                const lastPointAccuracy = points.at(-1)?.accuracy_m;
+                const accuracyMeters = Number.isFinite(lastPointAccuracy)
+                    ? lastPointAccuracy
+                    : activity.status === 'in_progress' ? state.gpsAccuracyMeters : null;
+                accuracy.textContent = accuracyMeters === null
+                    ? 'Precisão GPS: aguardando leitura'
+                    : `Precisão reportada pelo aparelho: ±${Math.round(accuracyMeters)} m`;
+            }
+        }
+
+        function openTrackingModal(readOnly = false, viewedActivity = state.activeActivity, viewedPoints = getVisibleGpsPoints()) {
+            if (!viewedActivity && !readOnly) return;
+            const activity = viewedActivity;
+            const points = viewedPoints;
+            openModal(readOnly ? 'Mapa da pedalada' : 'Gravando pedalada', `
+                <div class="space-y-4">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div><h4 class="font-bold text-white">${escapeHTML(activity?.name || 'Pedalada')}</h4>
+                            <p id="tracking-status" class="mt-1 text-xs text-slate-400">${readOnly ? 'Percurso registrado' : 'Verificando estado do GPS...'}</p>
+                            <p id="tracking-accuracy" class="mt-1 text-xs text-slate-400">Precisão GPS: aguardando leitura</p>
+                        </div>
+                        <span id="tracking-elapsed" class="font-mono text-lg font-bold text-lime">${activity ? formatElapsedTime(activity) : '00:00:00'}</span>
+                    </div>
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div class="rounded-xl bg-grafite-900/70 p-4"><span class="block text-xs text-slate-400">Velocidade atual</span><strong id="tracking-speed" class="text-2xl font-black text-lime">${formatSpeedKmh(state.gpsCurrentSpeedMps)}</strong></div>
+                        <div class="rounded-xl bg-grafite-900/70 p-4"><span class="block text-xs text-slate-400">Distância</span><strong id="tracking-distance" class="text-2xl font-black text-white">0,00 km</strong></div>
+                        <div class="rounded-xl bg-grafite-900/70 p-4"><span class="block text-xs text-slate-400">Velocidade média</span><strong id="tracking-average-speed" class="text-2xl font-black text-white">0,0 km/h</strong></div>
+                        <div class="rounded-xl bg-grafite-900/70 p-4"><span class="block text-xs text-slate-400">Elevação*</span><strong id="tracking-elevation" class="text-2xl font-black text-white">0 m</strong></div>
+                    </div>
+                    <div id="tracking-metrics-map" class="rounded-xl overflow-hidden border border-grafite-600" role="application" aria-label="Mapa do percurso GPS"></div>
+                    <p class="text-xs text-slate-400">Precisão GPS é uma estimativa informada pelo aparelho, não uma garantia; obstáculos, ambiente e hardware podem afetá-la. A velocidade usa o GPS do aparelho ou deslocamento entre leituras. O navegador pode suspender o rastreamento em segundo plano. *Elevação usa somente altitudes fornecidas pelo GPS/GPX.</p>
+                    ${activity.local_only ? '<p class="text-xs text-sky-300">Modo de teste sem login: esta pedalada e o percurso ficam salvos somente neste navegador.</p>' : ''}
+                    ${readOnly ? '' : `<div class="flex flex-wrap justify-end gap-3">
+                        ${activity.status === 'in_progress' && state.gpsWatchId !== null ? `<button onclick="pauseActivity()" class="px-4 py-2 rounded-xl bg-grafite-700 hover:bg-grafite-600 text-white text-sm font-semibold"><i class="fa-solid fa-pause mr-1"></i>Pausar</button>` : ''}
+                        ${(activity.status === 'paused' || state.gpsWatchId === null) && !readOnly ? `<button onclick="resumeActivity()" class="px-4 py-2 rounded-xl bg-lime hover:bg-lime-hover text-grafite-900 text-sm font-bold"><i class="fa-solid fa-play mr-1"></i>Retomar</button>` : ''}
+                        <button onclick="finishActivity()" class="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white text-sm font-bold"><i class="fa-solid fa-flag-checkered mr-1"></i>Finalizar</button>
+                    </div>`}
+                </div>
+            `);
+            document.querySelector('#global-modal .glass-panel').classList.replace('max-w-lg', 'max-w-5xl');
+            document.querySelector('#global-modal .glass-panel').classList.add('max-h-[95vh]', 'overflow-y-auto');
+            document.getElementById('modal-footer').classList.add('hidden');
+            activityMapActivityId = activity.id;
+            updateTrackDisplay(points, activity.id);
+            initializeActivityMap(points, activity.id);
+            updateElapsedTime(activity, points);
+            if (!readOnly) {
+                updateTrackingStatus(activity.status === 'paused'
+                    ? 'Pedalada pausada · o GPS está desligado'
+                    : state.gpsWatchId === null && state.activeActivity?.id === activity.id
+                        ? 'Pedalada recuperada · toque em Retomar para reativar o GPS'
+                        : state.gpsSignalLost && state.activeActivity?.id === activity.id ? 'Sinal GPS perdido · tentando reconectar'
+                            : points.length ? `GPS conectado · ${points.length} posições válidas`
+                                : 'GPS conectado · aguardando a primeira posição válida');
+                state.trackingTimer = setInterval(updateElapsedTime, 1000);
+            }
+        }
+
+        async function showActivityTrack(activityId) {
+            try {
+                const activity = state.activities.find(item => item.id === activityId);
+                if (!activity) throw new Error('Atividade não encontrada.');
+                const points = await fetchActivityPoints(activityId);
+                openTrackingModal(true, activity, points);
+            } catch (error) {
+                console.error('Falha ao carregar percurso GPS:', error);
+                showToast(error.message || 'Não foi possível carregar o percurso.', 'info');
+            }
+        }
+
+        async function openActiveTracking() {
+            if (!state.activeActivity) return;
+            if (state.activeActivity.status === 'paused' || state.gpsWatchId === null) {
+                await resumeActivity();
+                return;
+            }
+            openTrackingModal();
+        }
+
+        async function handleActivityButton() {
+            if (state.activeActivity) {
+                await openActiveTracking();
+                return;
+            }
+            await startActivity();
+        }
+
+        async function requestScreenWakeLock() {
+            if (!navigator.wakeLock?.request || state.screenWakeLock || document.visibilityState !== 'visible') return;
+            try {
+                state.screenWakeLock = await navigator.wakeLock.request('screen');
+                state.screenWakeLock.addEventListener('release', () => {
+                    state.screenWakeLock = null;
+                }, { once: true });
+            } catch (error) {
+                console.warn('Não foi possível manter a tela ativa durante a pedalada:', error);
+                showToast('Mantenha a tela ativa para reduzir o risco de interrupção do GPS.', 'info');
+            }
+        }
+
+        async function releaseScreenWakeLock() {
+            if (!state.screenWakeLock) return;
+            const wakeLock = state.screenWakeLock;
+            state.screenWakeLock = null;
+            try {
+                await wakeLock.release();
+            } catch (error) {
+                console.warn('Não foi possível liberar o bloqueio de tela:', error);
+            }
+        }
+
+        function startPositionWatch() {
+            ensureGeolocationAvailable();
+            stopPositionWatch();
+            state.gpsSignalLost = false;
+            state.gpsWatchId = navigator.geolocation.watchPosition(position => {
+                state.gpsSaveQueue = state.gpsSaveQueue.then(async () => {
+                    const converted = convertGpsPosition(position);
+                    if (converted.error) {
+                        state.gpsSignalLost = true;
+                        state.gpsCurrentSpeedMps = 0;
+                        updateTrackingStatus(converted.error);
+                        updateElapsedTime();
+                        return;
+                    }
+                    if (converted.point) {
+                        const previous = getVisibleGpsPoints().at(-1);
+                        const elapsed = previous?.recorded_at
+                            ? (Date.parse(converted.point.recorded_at) - Date.parse(previous.recorded_at)) / 1000
+                            : 0;
+                        const calculatedSpeed = previous && elapsed > 0 && !converted.point.segment_start
+                            ? haversineMeters(previous, converted.point) / elapsed
+                            : 0;
+                        const deviceSpeed = position.coords.speed;
+                        const speed = converted.point.accuracy_m <= 25
+                            && Number.isFinite(deviceSpeed) && deviceSpeed >= 0
+                            ? deviceSpeed
+                            : calculatedSpeed;
+                        const validSpeed = Number.isFinite(speed) && speed <= MAX_CYCLING_SPEED_METERS_PER_SECOND
+                            ? speed
+                            : 0;
+                        state.gpsSpeedSamples = [...state.gpsSpeedSamples, validSpeed].slice(-3);
+                        state.gpsCurrentSpeedMps = state.gpsSpeedSamples.reduce((sum, sample) => sum + sample, 0)
+                            / state.gpsSpeedSamples.length;
+                        state.gpsAccuracyMeters = converted.point.accuracy_m;
+                        state.gpsLastPositionAt = Date.now();
+                        await persistTrackPoint(converted.point);
+                        updateElapsedTime();
+                    }
+                }).catch(error => {
+                    console.error('Falha ao persistir ponto GPS:', error);
+                    state.gpsSignalLost = true;
+                    state.gpsCurrentSpeedMps = 0;
+                    state.gpsSpeedSamples = [];
+                    updateElapsedTime();
+                    updateTrackingStatus(state.activeActivity?.local_only
+                        ? 'Falha ao salvar localmente · confira o armazenamento do navegador'
+                        : 'Sem sincronização · há pontos pendentes; reconecte para tentar sincronizar');
+                    showToast(error.message || 'Falha ao sincronizar um ponto GPS.', 'info');
+                });
+            }, error => {
+                const notify = !state.gpsSignalLost || error.code === 1;
+                state.gpsSignalLost = true;
+                state.gpsCurrentSpeedMps = 0;
+                state.gpsSpeedSamples = [];
+                const message = gpsErrorMessage(error);
+                updateTrackingStatus(message);
+                updateElapsedTime();
+                if (notify) showToast(message, 'info');
+                if (error.code === 1) {
+                    navigator.geolocation.clearWatch(state.gpsWatchId);
+                    state.gpsWatchId = null;
+                    syncActivityButton();
+                }
+            }, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+            syncActivityButton();
+            void requestScreenWakeLock();
+        }
+
+        function stopPositionWatch() {
+            if (state.gpsWatchId !== null && navigator.geolocation) {
+                navigator.geolocation.clearWatch(state.gpsWatchId);
+                state.gpsWatchId = null;
+            }
+        }
+
+        async function startActivity(name = 'Pedalada') {
+            if (state.activeActivity) {
+                showToast('Já existe uma pedalada em andamento. Retome ou finalize essa atividade primeiro.', 'info');
+                openTrackingModal();
+                return;
+            }
+            try {
+                const position = await getCurrentPosition();
+                const firstPoint = convertGpsPosition(position, true);
+                if (!firstPoint.point) throw new Error(firstPoint.error || 'O GPS ainda não forneceu uma posição válida.');
+                const activityPayload = {
+                    name: String(name).slice(0, 120),
+                    activity_type: 'cycling',
+                    status: 'in_progress',
+                    tracking_mode: 'gps',
+                    started_at: new Date(position.timestamp).toISOString(),
+                    ended_at: null,
+                    paused_at: null,
+                    paused_seconds: 0,
+                    distance_km: 0,
+                    elevation_m: 0
+                };
+                if (state.authUser && window.rideXSupabase) {
+                    const { data, error } = await window.rideXSupabase.from('activities').insert(activityPayload).select('*').single();
+                    if (error) throw error;
+                    state.activeActivity = data;
+                } else {
+                    state.activeActivity = {
+                        ...activityPayload,
+                        id: crypto.randomUUID(),
+                        local_only: true,
+                        points: []
+                    };
+                }
+                state.gpsPoints = [];
+                state.pendingGpsPoints = [];
+                state.gpsSaveQueue = Promise.resolve();
+                state.gpsSignalLost = false;
+                state.gpsLastPositionAt = Date.now();
+                state.gpsCurrentSpeedMps = 0;
+                let firstPointError = null;
+                try {
+                    await persistTrackPoint(firstPoint.point);
+                } catch (error) {
+                    firstPointError = error;
+                    console.error('Falha ao salvar a primeira posição GPS:', error);
+                }
+                try {
+                    startPositionWatch();
+                } catch (watchError) {
+                    state.gpsSignalLost = true;
+                    console.error('Falha ao iniciar monitoramento GPS:', watchError);
+                    showToast(watchError.message || 'A pedalada foi criada, mas o monitoramento GPS não iniciou.', 'info');
+                }
+                openTrackingModal();
+                if (state.activeActivity.local_only) {
+                    persistLocalActivity();
+                    syncActivityButton();
+                    renderContent();
+                } else if (!await refreshUserData()) return;
+                showToast(firstPointError
+                    ? `Pedalada iniciada, mas houve falha ao salvar a primeira posição GPS: ${firstPointError.message}`
+                    : state.activeActivity.local_only
+                        ? 'Pedalada iniciada. O percurso será salvo neste navegador.'
+                        : 'Pedalada iniciada com localização GPS.',
+                    firstPointError ? 'info' : 'success');
+            } catch (error) {
+                console.error('Não foi possível iniciar a pedalada:', error);
+                showToast(error.message || 'Não foi possível iniciar a pedalada.', 'info');
+            }
+        }
+
+        async function pauseActivity() {
+            if (!state.activeActivity || state.activeActivity.status !== 'in_progress') return;
+            stopPositionWatch();
+            try {
+                await state.gpsSaveQueue;
+                const pausedAt = new Date().toISOString();
+                if (state.activeActivity.local_only) {
+                    state.activeActivity = { ...state.activeActivity, status: 'paused', paused_at: pausedAt };
+                    state.gpsCurrentSpeedMps = 0;
+                    state.gpsSpeedSamples = [];
+                    await releaseScreenWakeLock();
+                    persistLocalActivity();
+                    syncActivityButton();
+                    openTrackingModal();
+                    showToast('Pedalada pausada.', 'success');
+                    return;
+                }
+                const { data, error } = await window.rideXSupabase.from('activities').update({
+                    status: 'paused',
+                    paused_at: pausedAt
+                }).eq('id', state.activeActivity.id).select('id').maybeSingle();
+                if (error) throw error;
+                if (!data) throw new Error('Pedalada não encontrada ou não autorizada.');
+                state.activeActivity = { ...state.activeActivity, status: 'paused', paused_at: pausedAt };
+                state.gpsCurrentSpeedMps = 0;
+                state.gpsSpeedSamples = [];
+                await releaseScreenWakeLock();
+                syncActivityButton();
+                updateTrackingStatus('Pedalada pausada · GPS desligado');
+                openTrackingModal();
+                showToast('Pedalada pausada.', 'success');
+            } catch (error) {
+                console.error('Falha ao pausar pedalada:', error);
+                showToast(error.message || 'Não foi possível pausar no servidor.', 'info');
+                if (state.activeActivity?.status === 'in_progress' && state.gpsWatchId === null) {
+                    try {
+                        startPositionWatch();
+                    } catch (watchError) {
+                        console.error('Falha ao retomar GPS após erro ao pausar:', watchError);
+                    }
+                }
+            }
+        }
+
+        async function resumeActivity() {
+            if (!state.activeActivity) return;
+            try {
+                const position = await getCurrentPosition();
+                const point = convertGpsPosition(position, true);
+                if (!point.point) throw new Error(point.error || 'O GPS ainda não forneceu uma posição válida.');
+                if (state.activeActivity.local_only) {
+                    if (state.activeActivity.status === 'paused') {
+                        const pausedSeconds = Number(state.activeActivity.paused_seconds || 0)
+                            + Math.max(0, Math.floor((Date.now() - Date.parse(state.activeActivity.paused_at)) / 1000));
+                        state.activeActivity = { ...state.activeActivity, status: 'in_progress', paused_at: null, paused_seconds: pausedSeconds };
+                    }
+                    state.gpsCurrentSpeedMps = 0;
+                    state.gpsSpeedSamples = [];
+                    await persistTrackPoint(point.point);
+                    startPositionWatch();
+                    openTrackingModal();
+                    showToast('Pedalada retomada.', 'success');
+                    return;
+                }
+                if (state.pendingGpsPoints.length) await flushPendingGpsPoints();
+                if (state.activeActivity.status === 'paused') {
+                    const pausedSeconds = Number(state.activeActivity.paused_seconds || 0)
+                        + Math.max(0, Math.floor((Date.now() - Date.parse(state.activeActivity.paused_at)) / 1000));
+                    const { data, error } = await window.rideXSupabase.from('activities').update({
+                        status: 'in_progress',
+                        paused_at: null,
+                        paused_seconds: pausedSeconds
+                    }).eq('id', state.activeActivity.id).select('id').maybeSingle();
+                    if (error) throw error;
+                    if (!data) throw new Error('Pedalada não encontrada ou não autorizada.');
+                    state.activeActivity = { ...state.activeActivity, status: 'in_progress', paused_at: null, paused_seconds: pausedSeconds };
+                }
+                await persistTrackPoint(point.point);
+                startPositionWatch();
+                openTrackingModal();
+                showToast('Pedalada retomada.', 'success');
+            } catch (error) {
+                console.error('Falha ao retomar pedalada:', error);
+                state.gpsSignalLost = true;
+                showToast(error.message || 'Não foi possível retomar a pedalada; confira a permissão e o sinal GPS.', 'info');
+                if (state.activeActivity) openTrackingModal();
+            }
+        }
+
+        async function finishActivity() {
+            if (!state.activeActivity) return;
+            if (!window.confirm('Finalizar e salvar esta pedalada?')) return;
+            stopPositionWatch();
+            try {
+                await state.gpsSaveQueue;
+                if (state.activeActivity.local_only) {
+                    const endedAt = new Date().toISOString();
+                    const summary = calculateTrackSummary(state.gpsPoints);
+                    state.activeActivity = {
+                        ...state.activeActivity,
+                        ...summary,
+                        status: 'completed',
+                        ended_at: endedAt,
+                        paused_seconds: getFinalPausedSeconds(state.activeActivity, endedAt),
+                        paused_at: null
+                    };
+                    await releaseScreenWakeLock();
+                    persistLocalActivity();
+                    closeModal();
+                    state.activeActivity = null;
+                    state.gpsPoints = [];
+                    state.gpsCurrentSpeedMps = 0;
+                    syncActivityButton();
+                    await refreshUserData();
+                    switchView('dashboard');
+                    showToast('Pedalada finalizada e salva neste dispositivo.', 'success');
+                    return;
+                }
+                if (state.pendingGpsPoints.length) await flushPendingGpsPoints();
+                const summary = calculateTrackSummary(state.gpsPoints);
+                const endedAt = new Date().toISOString();
+                const { data, error } = await window.rideXSupabase.from('activities').update({
+                    ...summary,
+                    status: 'completed',
+                    ended_at: endedAt,
+                    paused_seconds: getFinalPausedSeconds(state.activeActivity, endedAt),
+                    paused_at: null
+                }).eq('id', state.activeActivity.id).select('id').maybeSingle();
+                if (error) throw error;
+                if (!data) throw new Error('Pedalada não encontrada ou não autorizada.');
+                await releaseScreenWakeLock();
+                closeModal();
+                state.pendingGpsPoints = [];
+                persistPendingGpsPoints();
+                state.activeActivity = null;
+                state.gpsPoints = [];
+                syncActivityButton();
+                if (!await refreshUserData()) return;
+                showToast('Pedalada finalizada e salva.', 'success');
+            } catch (error) {
+                console.error('Falha ao finalizar pedalada:', error);
+                showToast(error.message || 'Não foi possível finalizar a pedalada; ela continua recuperável.', 'info');
+                if (state.activeActivity && state.gpsWatchId === null && state.activeActivity.status === 'in_progress') {
+                    startPositionWatch();
+                }
+            }
+        }
+
+        function handleVisibilityChange() {
+            if (document.visibilityState === 'hidden' && state.activeActivity?.status === 'in_progress') {
+                state.backgroundRecordingWarning = true;
+            } else if (document.visibilityState === 'visible' && state.backgroundRecordingWarning) {
+                state.backgroundRecordingWarning = false;
+                showToast('A gravação em segundo plano não é garantida. O trecho sem posições GPS não pode ser reconstruído.', 'info');
+            }
+            if (document.visibilityState === 'visible' && state.activeActivity?.status === 'in_progress') {
+                void requestScreenWakeLock();
+            }
+        }
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('beforeunload', event => {
+            if (state.activeActivity?.status === 'in_progress') {
+                event.preventDefault();
+                event.returnValue = '';
+            }
+        });
+
+        function parseGpxPoints(xmlText) {
+            const documentXml = new DOMParser().parseFromString(xmlText, 'application/xml');
+            if (documentXml.querySelector('parsererror')) throw new Error('O arquivo não contém XML/GPX válido.');
+            let sourceGroups = [...documentXml.querySelectorAll('trkseg, rte')]
+                .map(group => [...group.children].filter(point => point.localName === 'trkpt' || point.localName === 'rtept'))
+                .filter(group => group.length > 0);
+            if (!sourceGroups.length) {
+                const ungroupedPoints = [...documentXml.querySelectorAll('trkpt, rtept')];
+                if (ungroupedPoints.length) sourceGroups = [ungroupedPoints];
+            }
+            const sourcePoints = sourceGroups.flat();
+            if (!sourcePoints.length) throw new Error('O GPX não contém pontos de trilha (trkpt/rtept).');
+            if (sourcePoints.length > 20000) throw new Error('O GPX excede o limite de 20.000 pontos por importação.');
+            const points = [];
+            for (const group of sourceGroups) {
+                let firstAcceptedInSegment = true;
+                for (const node of group) {
+                    const latitudeText = node.getAttribute('lat');
+                    const longitudeText = node.getAttribute('lon');
+                    const latitude = latitudeText === null || latitudeText.trim() === '' ? NaN : Number(latitudeText);
+                    const longitude = longitudeText === null || longitudeText.trim() === '' ? NaN : Number(longitudeText);
+                    const elevationText = node.querySelector('ele')?.textContent?.trim();
+                    const timeText = node.querySelector('time')?.textContent?.trim();
+                    const altitude = elevationText ? Number(elevationText) : null;
+                    const timestamp = timeText ? Date.parse(timeText) : null;
+                    const point = {
+                        latitude,
+                        longitude,
+                        accuracy_m: null,
+                        altitude_m: Number.isFinite(altitude) && altitude >= -12000 && altitude <= 100000 ? altitude : null,
+                        recorded_at: Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null,
+                        segment_start: firstAcceptedInSegment,
+                        source: 'gpx'
+                    };
+                    const valid = validateTrackPoint(point, points, true);
+                    if (valid.point) {
+                        points.push(valid.point);
+                        firstAcceptedInSegment = false;
+                    }
+                }
+            }
+            if (!points.length) throw new Error('Nenhum ponto GPX válido permaneceu após a validação.');
+            if (points.length > 20000) throw new Error('O GPX excede o limite de 20.000 pontos por importação.');
+            return points;
+        }
+
+        async function importGpxFile() {
+            if (!requireAuthenticatedUser()) return;
+            const input = document.getElementById('gpx-file');
+            const file = input?.files?.[0];
+            if (!file) {
+                showToast('Selecione um arquivo GPX para importar.', 'info');
+                return;
+            }
+            if (state.activeActivity) {
+                showToast('Finalize a pedalada ativa antes de importar um GPX.', 'info');
+                return;
+            }
+            if (file.size > 10 * 1024 * 1024 || !/\.gpx$/i.test(file.name)) {
+                showToast('Selecione um arquivo .gpx de até 10 MB.', 'info');
+                return;
+            }
+            try {
+                const points = parseGpxPoints(await file.text());
+                const summary = calculateTrackSummary(points);
+                const recordedTimes = points.map(point => point.recorded_at).filter(Boolean).sort();
+                const importedAt = new Date().toISOString();
+                const startedAt = recordedTimes[0] || importedAt;
+                const endedAt = recordedTimes[recordedTimes.length - 1] || startedAt;
+                const { data: activity, error: activityError } = await window.rideXSupabase.from('activities').insert({
+                    name: file.name.replace(/\.gpx$/i, '').slice(0, 120) || 'Trilha GPX',
+                    activity_type: 'cycling',
+                    tracking_mode: 'gpx',
+                    status: 'completed',
+                    started_at: startedAt,
+                    ended_at: endedAt,
+                    distance_km: summary.distance_km,
+                    elevation_m: summary.elevation_m,
+                    notes: recordedTimes.length ? 'Importada de GPX.' : 'Importada de GPX; o arquivo não continha horários dos pontos.'
+                }).select('id').single();
+                if (activityError) throw activityError;
+                try {
+                    for (let offset = 0; offset < points.length; offset += 500) {
+                        const rows = points.slice(offset, offset + 500).map((point, index) => ({
+                            ...point,
+                            activity_id: activity.id,
+                            user_id: state.authUser.id,
+                            sequence: offset + index
+                        }));
+                        const { error } = await window.rideXSupabase.from('activity_points').insert(rows);
+                        if (error) throw error;
+                    }
+                } catch (error) {
+                    const { error: rollbackError } = await window.rideXSupabase.from('activities').delete().eq('id', activity.id);
+                    if (rollbackError) {
+                        console.error('Falha ao remover importação GPX parcial:', rollbackError);
+                        throw new Error(`${error.message || 'Erro ao gravar pontos GPX.'} A limpeza também falhou; a atividade parcial pode permanecer no banco.`);
+                    }
+                    throw error;
+                }
+                if (!await refreshUserData()) return;
+                showToast(`${points.length} pontos GPX importados · ${summary.distance_km.toLocaleString('pt-BR')} km calculados.`, 'success');
+                input.value = '';
+            } catch (error) {
+                console.error('Falha ao importar GPX:', error);
+                showToast(error.message || 'Não foi possível importar o arquivo GPX.', 'info');
+            }
+        }
+
+        function openQuickActionModal() {
+            openActivityModal();
+        }
+
+        function openNewRouteModal() {
+            openModal('Mapear Nova Trilha', `
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-xs text-slate-400 font-medium">Título da Trilha</label>
+                        <input type="text" placeholder="Ex: Travessia dos Altos" class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 font-medium">Localização</label>
+                        <input type="text" placeholder="Cidade, Estado" class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime">
+                    </div>
+                </div>
+            `);
+        }
+
+        function openNotificationsModal() {
+            openModal('Notificações Recentes', `
+                <div class="space-y-3">
+                    <div class="p-3 rounded-xl bg-grafite-700/50 border border-grafite-600 flex items-start gap-3">
+                        <i class="fa-solid fa-trophy text-lime mt-1"></i>
+                        <div>
+                            <h4 class="text-sm font-bold text-white">Novo KOM Conquistado!</h4>
+                            <p class="text-xs text-slate-400">Você bateu o recorde na subida da Serra do Rastro.</p>
+                        </div>
+                    </div>
+                    <div class="p-3 rounded-xl bg-grafite-700/50 border border-grafite-600 flex items-start gap-3">
+                        <i class="fa-solid fa-bicycle text-lime mt-1"></i>
+                        <div>
+                            <h4 class="text-sm font-bold text-white">Manutenção Preventiva</h4>
+                            <p class="text-xs text-slate-400">Sua corrente atingiu 75% de desgaste sugerido.</p>
+                        </div>
+                    </div>
+                </div>
+            `);
+        }
+
+        // Initialize default view on load
+        window.onload = async function() {
+            const supabase = window.rideXSupabase;
+            if (supabase) {
+                try {
+                    const { data, error } = await supabase.auth.getSession();
+                    if (error) throw error;
+                    state.authUser = data.session?.user || null;
+                } catch (error) {
+                    console.error('Falha ao restaurar sessão Supabase:', error);
+                    showToast(error.message || 'Não foi possível restaurar sua sessão.', 'info');
+                }
+                supabase.auth.onAuthStateChange((_event, session) => {
+                    if (!session?.user) stopPositionWatch();
+                    state.authUser = session?.user || null;
+                    updateAuthInterface();
+                    void refreshUserData();
+                });
+            }
+            updateAuthInterface();
+            switchView('landing');
+            await refreshUserData();
+        };
+    </script>
+</body>
+</html>
