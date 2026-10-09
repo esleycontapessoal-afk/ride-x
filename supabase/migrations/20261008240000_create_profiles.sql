@@ -52,3 +52,5 @@ create policy "Users can update their own profile"
 
 revoke all on public.profiles from anon;
 grant select, insert, update on public.profiles to authenticated;
+
+notify pgrst, 'reload schema';
