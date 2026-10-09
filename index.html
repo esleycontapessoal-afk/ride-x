@@ -326,8 +326,8 @@
                 <div class="pt-6 px-3 pb-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Sistema</div>
 
                 <button onclick="switchView('settings')" id="nav-settings" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-medium text-slate-300 hover:bg-grafite-700 hover:text-white transition-all group">
-                    <i class="fa-solid fa-gear text-lg text-slate-400 group-hover:text-lime transition-colors"></i>
-                    <span>Configurações</span>
+                    <i class="fa-solid fa-user-gear text-lg text-slate-400 group-hover:text-lime transition-colors"></i>
+                    <span>Minha conta</span>
                 </button>
             </div>
 
@@ -446,6 +446,7 @@
             trackingTimer: null,
             backgroundRecordingWarning: false,
             authUser: null,
+            userProfile: null,
             routes: [
                 { id: 1, name: 'Serra do Rio do Rastro', location: 'Santa Catarina, BR', distance: '24.2 km', elevation: '1,240 m', difficulty: 'Extrema', rating: '4.9', image: 'https://placehold.co/600x400/1C2026/B7F34A?text=Serra+Rastro' },
                 { id: 2, name: 'Trilha dos Canions', location: 'Cambará do Sul, RS', distance: '48.5 km', elevation: '850 m', difficulty: 'Moderada', rating: '4.8', image: 'https://placehold.co/600x400/1C2026/B7F34A?text=Canions+RS' },
@@ -494,7 +495,7 @@
                 routes: { title: 'Trilhas & Rotas Pro', subtitle: 'Explore trajetos mapeados para aventura' },
                 community: { title: 'Comunidade Outdoor', subtitle: 'Conecte-se com atletas e compartilhe conquistas' },
                 equipment: { title: 'Minhas Bicicletas', subtitle: 'Cadastre e gerencie suas bicicletas' },
-                settings: { title: 'Configurações da Conta', subtitle: 'Preferências de perfil, tema e integração GPS' }
+                settings: { title: 'Minha conta', subtitle: 'Seu perfil e informações pessoais' }
             };
 
             if (titles[viewName]) {
@@ -1014,54 +1015,75 @@
 
         // 6. Settings View HTML Generator
         function renderSettingsView() {
+            if (!state.authUser) {
+                return `
+                    <section class="mx-auto max-w-2xl animate-in fade-in duration-300">
+                        <div class="glass-panel rounded-3xl border border-grafite-600 p-8 text-center sm:p-12">
+                            <span class="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-lime/10 text-3xl text-lime"><i class="fa-solid fa-user"></i></span>
+                            <h2 class="mt-5 text-2xl font-bold text-white">Sua conta RIDE X</h2>
+                            <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-400">Entre com o Google ou crie uma conta para editar seu perfil e sincronizar pedaladas entre dispositivos.</p>
+                            <div class="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+                                <button onclick="openAuthModal()" class="rounded-xl bg-lime px-5 py-3 font-bold text-grafite-900 transition hover:bg-lime-hover"><i class="fa-brands fa-google mr-2"></i>Entrar ou criar conta</button>
+                                <button onclick="switchView('dashboard')" class="rounded-xl border border-grafite-500 bg-grafite-700 px-5 py-3 font-semibold text-white transition hover:bg-grafite-600">Continuar sem conta</button>
+                            </div>
+                        </div>
+                    </section>
+                `;
+            }
+            const profile = state.userProfile || {};
+            const fullName = profile.full_name ?? state.authUser.user_metadata?.full_name ?? state.authUser.user_metadata?.name ?? '';
             return `
-                <div class="space-y-6 max-w-3xl mx-auto animate-in fade-in duration-300">
-                    <div class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-6">
-                        <h3 class="text-lg font-bold text-white border-b border-grafite-600 pb-4">Perfil do Atleta</h3>
-                        
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div class="space-y-2">
-                                <label class="text-xs text-slate-400 font-medium">Nome Completo</label>
-                                <input type="text" value="Marcus Silva" class="w-full bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime">
+                <form onsubmit="saveUserProfile(event)" class="mx-auto max-w-3xl space-y-5 animate-in fade-in duration-300">
+                    <section class="glass-panel rounded-2xl border border-grafite-600 p-5 sm:p-7">
+                        <div class="mb-6 flex items-center gap-4 border-b border-grafite-600 pb-5">
+                            <span class="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-lime/10 text-2xl text-lime"><i class="fa-solid fa-person-biking"></i></span>
+                            <div class="min-w-0">
+                                <h2 class="text-xl font-bold text-white">Perfil do atleta</h2>
+                                <p class="truncate text-sm text-slate-400">${escapeHTML(state.authUser.email || 'Conta conectada')}</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div class="space-y-2 sm:col-span-2">
+                                <label for="profile-full-name" class="text-sm font-medium text-slate-300">Nome</label>
+                                <input id="profile-full-name" name="full_name" type="text" maxlength="80" required autocomplete="name" value="${escapeHTML(fullName)}" class="w-full rounded-xl border border-grafite-600 bg-grafite-700 px-4 py-3 text-sm text-white outline-none transition focus:border-lime">
                             </div>
                             <div class="space-y-2">
-                                <label class="text-xs text-slate-400 font-medium">Handle / Apelido</label>
-                                <input type="text" value="@marcus_ride" class="w-full bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime">
+                                <label for="profile-handle" class="text-sm font-medium text-slate-300">Apelido <span class="text-slate-500">(opcional)</span></label>
+                                <input id="profile-handle" name="handle" type="text" maxlength="30" autocomplete="nickname" value="${escapeHTML(profile.handle || '')}" placeholder="Como quer ser chamado?" class="w-full rounded-xl border border-grafite-600 bg-grafite-700 px-4 py-3 text-sm text-white outline-none transition focus:border-lime">
+                            </div>
+                            <div class="space-y-2">
+                                <label for="profile-age" class="text-sm font-medium text-slate-300">Idade <span class="text-slate-500">(opcional)</span></label>
+                                <div class="relative">
+                                    <input id="profile-age" name="age" type="number" min="1" max="120" step="1" inputmode="numeric" value="${profile.age ?? ''}" placeholder="Ex.: 30" class="w-full rounded-xl border border-grafite-600 bg-grafite-700 px-4 py-3 pr-14 text-sm text-white outline-none transition focus:border-lime">
+                                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-500">anos</span>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <label for="profile-height" class="text-sm font-medium text-slate-300">Altura <span class="text-slate-500">(opcional)</span></label>
+                                <div class="relative">
+                                    <input id="profile-height" name="height_cm" type="number" min="80" max="250" step="1" inputmode="numeric" value="${profile.height_cm ?? ''}" placeholder="Ex.: 175" class="w-full rounded-xl border border-grafite-600 bg-grafite-700 px-4 py-3 pr-14 text-sm text-white outline-none transition focus:border-lime">
+                                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-500">cm</span>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <label for="profile-weight" class="text-sm font-medium text-slate-300">Peso <span class="text-slate-500">(opcional)</span></label>
+                                <div class="relative">
+                                    <input id="profile-weight" name="weight_kg" type="number" min="20" max="350" step="0.1" inputmode="decimal" value="${profile.weight_kg ?? ''}" placeholder="Ex.: 72,5" class="w-full rounded-xl border border-grafite-600 bg-grafite-700 px-4 py-3 pr-14 text-sm text-white outline-none transition focus:border-lime">
+                                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-500">kg</span>
+                                </div>
+                            </div>
+                            <div class="space-y-2 sm:col-span-2">
+                                <label for="profile-bio" class="text-sm font-medium text-slate-300">Sobre você <span class="text-slate-500">(opcional)</span></label>
+                                <textarea id="profile-bio" name="bio" rows="3" maxlength="500" placeholder="Conte um pouco sobre suas pedaladas e objetivos." class="w-full resize-y rounded-xl border border-grafite-600 bg-grafite-700 p-4 text-sm text-white outline-none transition focus:border-lime">${escapeHTML(profile.bio || '')}</textarea>
                             </div>
                         </div>
-
-                        <div class="space-y-2">
-                            <label class="text-xs text-slate-400 font-medium">Biografia / Objetivo Outdoor</label>
-                            <textarea rows="2" class="w-full bg-grafite-700 text-sm text-slate-200 p-4 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime resize-none">Explorador de gravel e trilhas de montanha. Em busca dos próximos 10.000 metros de elevação.</textarea>
+                        <p class="mt-4 text-xs leading-5 text-slate-500">Esses dados ficam associados à sua conta e são privados. Preencha apenas o que quiser compartilhar com o app.</p>
+                        <div class="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                            <button type="button" onclick="signOut()" class="rounded-xl border border-grafite-500 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-grafite-700">Sair da conta</button>
+                            <button type="submit" class="rounded-xl bg-lime px-5 py-3 text-sm font-bold text-grafite-900 transition hover:bg-lime-hover"><i class="fa-solid fa-floppy-disk mr-2"></i>Salvar perfil</button>
                         </div>
-                    </div>
-
-                    <div class="glass-panel p-6 rounded-2xl border border-grafite-600 space-y-6">
-                        <h3 class="text-lg font-bold text-white border-b border-grafite-600 pb-4">Integrações de Dispositivos</h3>
-                        
-                        <div class="flex items-center justify-between py-3 border-b border-grafite-600/50">
-                            <div>
-                                <h4 class="text-sm font-semibold text-white">Garmin Connect</h4>
-                                <p class="text-xs text-slate-400">Sincronização automática de treinos e rotas GPS</p>
-                            </div>
-                            <span class="px-3 py-1 rounded-full bg-lime/10 text-lime text-xs font-bold">Conectado</span>
-                        </div>
-
-                        <div class="flex items-center justify-between py-3">
-                            <div>
-                                <h4 class="text-sm font-semibold text-white">Strava Beacon</h4>
-                                <p class="text-xs text-slate-400">Compartilhamento de localização em tempo real com familiares</p>
-                            </div>
-                            <span class="px-3 py-1 rounded-full bg-grafite-700 text-slate-400 text-xs font-bold border border-grafite-600">Desconectado</span>
-                        </div>
-                    </div>
-
-                    <div class="flex justify-end gap-3">
-                        <button onclick="showToast('Alterações salvas com sucesso!', 'success')" class="px-6 py-3 rounded-xl bg-lime hover:bg-lime-hover text-grafite-900 font-bold text-sm shadow-lg shadow-lime/20">
-                            Salvar Alterações
-                        </button>
-                    </div>
-                </div>
+                    </section>
+                </form>
             `;
         }
 
@@ -1219,6 +1241,8 @@
             const isSignup = state.authMode === 'signup';
             openModal(isSignup ? 'Criar sua conta RIDE X' : 'Entrar na RIDE X', `
                 <div class="space-y-4">
+                    <button type="button" onclick="signInWithGoogle()" class="flex w-full items-center justify-center gap-3 rounded-xl border border-grafite-500 bg-white px-4 py-3 text-sm font-bold text-grafite-900 transition hover:bg-slate-100"><i class="fa-brands fa-google text-base"></i>Continuar com Google</button>
+                    <div class="flex items-center gap-3 text-xs text-slate-500"><span class="h-px flex-1 bg-grafite-600"></span>ou use seu e-mail<span class="h-px flex-1 bg-grafite-600"></span></div>
                     ${isSignup ? `<div><label for="auth-name" class="text-xs text-slate-400 font-medium">Nome</label><input id="auth-name" type="text" maxlength="80" autocomplete="name" class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>` : ''}
                     <div><label for="auth-email" class="text-xs text-slate-400 font-medium">E-mail</label><input id="auth-email" type="email" maxlength="254" autocomplete="email" required class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>
                     <div><label for="auth-password" class="text-xs text-slate-400 font-medium">Senha</label><input id="auth-password" type="password" minlength="8" maxlength="72" autocomplete="${isSignup ? 'new-password' : 'current-password'}" required class="w-full mt-1 bg-grafite-700 text-sm text-slate-200 px-4 py-2.5 rounded-xl border border-grafite-600 focus:outline-none focus:border-lime"></div>
@@ -1226,6 +1250,24 @@
                 </div>
             `);
             setModalAction(isSignup ? 'Criar conta' : 'Entrar', submitAuthForm);
+        }
+
+        async function signInWithGoogle() {
+            if (!window.rideXSupabase) {
+                showToast('O login está indisponível: configure a conexão com o Supabase.', 'info');
+                return;
+            }
+            try {
+                const redirectTo = `${window.location.origin}${window.location.pathname}?view=settings`;
+                const { error } = await window.rideXSupabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: { redirectTo }
+                });
+                if (error) throw error;
+            } catch (error) {
+                console.error('Falha ao iniciar login com Google:', error);
+                showToast(error.message || 'Não foi possível entrar com o Google. Verifique a configuração do provedor no Supabase.', 'info');
+            }
         }
 
         async function submitAuthForm() {
@@ -1278,7 +1320,7 @@
         }
 
         function updateAuthInterface() {
-            const name = state.authUser?.user_metadata?.full_name || state.authUser?.email || 'Visitante';
+            const name = state.userProfile?.full_name || state.authUser?.user_metadata?.full_name || state.authUser?.user_metadata?.name || state.authUser?.email || 'Visitante';
             document.getElementById('profile-name').textContent = name;
             document.getElementById('profile-status').innerHTML = state.authUser
                 ? '<i class="fa-solid fa-shield-halved text-[10px]"></i> Conta conectada'
@@ -1293,9 +1335,58 @@
             syncActivityButton();
         }
 
+        async function saveUserProfile(event) {
+            event.preventDefault();
+            if (!requireAuthenticatedUser()) return;
+            const form = event.currentTarget;
+            const formData = new FormData(form);
+            const numberOrNull = name => {
+                const value = String(formData.get(name) || '').trim();
+                return value === '' ? null : Number(value);
+            };
+            const profile = {
+                user_id: state.authUser.id,
+                full_name: String(formData.get('full_name') || '').trim(),
+                handle: String(formData.get('handle') || '').trim() || null,
+                age: numberOrNull('age'),
+                height_cm: numberOrNull('height_cm'),
+                weight_kg: numberOrNull('weight_kg'),
+                bio: String(formData.get('bio') || '').trim()
+            };
+            if (!profile.full_name || profile.full_name.length > 80
+                || (profile.handle && profile.handle.length > 30)
+                || (profile.age !== null && (!Number.isInteger(profile.age) || profile.age < 1 || profile.age > 120))
+                || (profile.height_cm !== null && (!Number.isInteger(profile.height_cm) || profile.height_cm < 80 || profile.height_cm > 250))
+                || (profile.weight_kg !== null && (!Number.isFinite(profile.weight_kg) || profile.weight_kg < 20 || profile.weight_kg > 350))
+                || profile.bio.length > 500) {
+                showToast('Revise os dados: nome (até 80 caracteres), apelido (até 30), idade (1–120), altura (80–250 cm), peso (20–350 kg) e descrição (até 500 caracteres).', 'info');
+                return;
+            }
+            const saveButton = form.querySelector('button[type="submit"]');
+            saveButton.disabled = true;
+            saveButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>Salvando...';
+            try {
+                const { data, error } = await window.rideXSupabase.from('profiles')
+                    .upsert(profile, { onConflict: 'user_id' })
+                    .select('user_id,full_name,handle,age,height_cm,weight_kg,bio')
+                    .single();
+                if (error) throw error;
+                state.userProfile = data;
+                updateAuthInterface();
+                renderContent();
+                showToast('Perfil salvo na sua conta.', 'success');
+            } catch (error) {
+                console.error('Falha ao salvar perfil:', error);
+                showToast(error.message || 'Não foi possível salvar o perfil. Confira se as migrações do Supabase foram aplicadas.', 'info');
+                saveButton.disabled = false;
+                saveButton.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i>Salvar perfil';
+            }
+        }
+
         async function loadUserData() {
             const localActivities = loadLocalActivities();
             if (!state.authUser || !window.rideXSupabase) {
+                state.userProfile = null;
                 state.activities = localActivities;
                 state.bicycles = [];
                 state.activeActivity = localActivities.find(activity => activity.status === 'in_progress' || activity.status === 'paused') || null;
@@ -1305,12 +1396,18 @@
                 syncActivityButton();
                 return;
             }
-            const [activitiesResult, bicyclesResult] = await Promise.all([
+            const [activitiesResult, bicyclesResult, profileResult] = await Promise.all([
                 window.rideXSupabase.from('activities').select('*').order('started_at', { ascending: false }),
-                window.rideXSupabase.from('bicycles').select('*').order('created_at', { ascending: false })
+                window.rideXSupabase.from('bicycles').select('*').order('created_at', { ascending: false }),
+                window.rideXSupabase.from('profiles')
+                    .select('user_id,full_name,handle,age,height_cm,weight_kg,bio')
+                    .eq('user_id', state.authUser.id)
+                    .maybeSingle()
             ]);
             if (activitiesResult.error) throw activitiesResult.error;
             if (bicyclesResult.error) throw bicyclesResult.error;
+            if (profileResult.error) throw profileResult.error;
+            state.userProfile = profileResult.data;
             state.activities = [...localActivities, ...activitiesResult.data];
             state.bicycles = bicyclesResult.data;
             state.activeActivity = localActivities.find(activity => activity.status === 'in_progress' || activity.status === 'paused')
@@ -1325,6 +1422,7 @@
                 ? loadPendingGpsPoints(state.activeActivity.id)
                 : [];
             state.gpsCurrentSpeedMps = 0;
+            updateAuthInterface();
             syncActivityButton();
         }
 
@@ -2593,12 +2691,14 @@
                 supabase.auth.onAuthStateChange((_event, session) => {
                     if (!session?.user) stopPositionWatch();
                     state.authUser = session?.user || null;
+                    if (!state.authUser) state.userProfile = null;
                     updateAuthInterface();
                     void refreshUserData();
                 });
             }
             updateAuthInterface();
-            switchView('landing');
+            const requestedView = new URLSearchParams(window.location.search).get('view');
+            switchView(requestedView === 'settings' ? 'settings' : 'landing');
             await refreshUserData();
         };
     </script>

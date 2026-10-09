@@ -29,6 +29,18 @@ Nunca use `service_role`, chaves secretas ou credenciais PostgreSQL no navegador
 4. Inicie com `npm run dev`. Para validar o pacote de produção use `npm run build`.
 5. Cadastre-se na aplicação. Se o projeto exigir confirmação por e-mail, confirme o endereço antes de entrar.
 
+## Login com Google e perfil
+
+Para habilitar o botão **Continuar com Google**:
+
+1. No Google Cloud Console, configure as origens JavaScript autorizadas `https://esleycontapessoal-afk.github.io` e `http://localhost:5173`.
+2. Configure como URI de redirecionamento autorizada do cliente OAuth: `https://zmkzczfauecjvuczzqyl.supabase.co/auth/v1/callback`.
+3. No Supabase, abra **Authentication → Providers → Google**, habilite o provedor e informe o Client ID e o Client Secret criados no Google.
+4. Em **Authentication → URL Configuration**, permita `https://esleycontapessoal-afk.github.io/ride-x/?view=settings` e `http://localhost:5173/?view=settings` como Redirect URLs.
+5. Aplique as migrações Supabase, incluindo `20261008240000_create_profiles.sql`.
+
+Em **Minha conta**, usuários autenticados podem editar nome, apelido, idade, altura, peso e biografia. Os dados são opcionais (exceto nome), validados no formulário e por constraints PostgreSQL, e protegidos por RLS para que cada usuário só possa consultar e alterar o próprio perfil. Sem sessão, essa área oferece acesso ao login/cadastro e à opção de continuar sem conta.
+
 ## Publicar no GitHub Pages
 
 O workflow `.github/workflows/deploy-pages.yml` compila e publica automaticamente a aplicação no GitHub Pages a cada push para `main`. O build usa a URL do projeto e a chave `publishable` pública, que é necessária no frontend. Depois que o primeiro deploy terminar, o endereço deste repositório será `https://esleycontapessoal-afk.github.io/ride-x/`.
