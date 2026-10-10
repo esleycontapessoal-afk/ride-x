@@ -49,7 +49,11 @@ No painel do Supabase, adicione esse endereço em **Authentication → URL Confi
 
 ## Testar uma pedalada sem login
 
-O botão flutuante **Iniciar pedal** permite testar a gravação GPS sem criar conta. A tela mostra velocidade atual, distância, velocidade média, tempo e o percurso no mapa em tempo real. Ao finalizar, a atividade e seus pontos ficam no `localStorage` deste navegador e aparecem no histórico local do dashboard.
+O botão flutuante **Iniciar pedal** permite testar a gravação GPS sem criar conta. A tela mostra velocidade atual, tempo decorrido e em movimento, distância, médias e máximas calculadas dos pontos GPS válidos, precisão reportada e o percurso no mapa em tempo real. O mapa pode ser recentralizado e expandido; os controles de pausa/finalização podem ser bloqueados contra toques acidentais. A pausa automática é opcional e só é acionada após 60 segundos parado com precisão GPS confiável. Ao finalizar, a atividade e seus pontos ficam no `localStorage` deste navegador e aparecem no histórico local do dashboard, além de um resumo com o percurso registrado.
+
+As médias e velocidades são calculadas somente com intervalos GPS recentes e válidos; elevação só é exibida quando há dados de altitude suficientes. A autorização de localização é solicitada pelo navegador ao iniciar ou retomar. Permita o acesso à localização e mantenha a tela aberta durante a pedalada: a gravação em segundo plano não é garantida.
+
+O dashboard reúne o histórico de atividades concluídas, totais reais dos últimos sete dias e do mês, recorde de distância e uma meta semanal opcional. A meta é uma preferência local deste navegador; atividades e percursos autenticados continuam usando o Supabase existente.
 
 Esse modo é apenas para teste: os dados não são enviados ao Supabase, não ficam sincronizados entre dispositivos e podem ser apagados ao limpar os dados do navegador. Para persistência na conta, entre no Supabase antes de iniciar a pedalada. A geolocalização precisa de permissão e funciona em HTTPS ou `localhost`.
 

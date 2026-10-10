@@ -208,6 +208,68 @@
         .tracking-map-shell #tracking-metrics-map {
             height: 196px;
         }
+        .tracking-map-shell.tracking-map-expanded {
+            position: fixed;
+            inset: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            border-color: rgba(183, 243, 74, 0.35);
+            box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.88);
+        }
+        .tracking-map-shell.tracking-map-expanded #tracking-metrics-map {
+            height: auto;
+            min-height: 0;
+            flex: 1;
+        }
+        .tracking-map-tools {
+            display: flex;
+            gap: 0.4rem;
+        }
+        .tracking-map-tool {
+            display: grid;
+            width: 2.75rem;
+            height: 2.75rem;
+            flex: 0 0 auto;
+            place-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 0.65rem;
+            background: rgba(255, 255, 255, 0.06);
+            color: #cbd5e1;
+            transition: color 150ms ease, background 150ms ease;
+        }
+        .tracking-map-tool:hover,
+        .tracking-map-tool:focus-visible {
+            background: rgba(183, 243, 74, 0.12);
+            color: #b7f34a;
+        }
+        .tracking-gps-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: fit-content;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 999px;
+            padding: 0.35rem 0.65rem;
+            color: #cbd5e1;
+            font-size: 0.65rem;
+            font-weight: 700;
+        }
+        .tracking-gps-badge[data-gps-state="connected"] { color: #b7f34a; border-color: rgba(183, 243, 74, 0.2); }
+        .tracking-gps-badge[data-gps-state="weak"],
+        .tracking-gps-badge[data-gps-state="reconnecting"] { color: #fbbf24; border-color: rgba(251, 191, 36, 0.2); }
+        .tracking-gps-badge[data-gps-state="unavailable"] { color: #fca5a5; border-color: rgba(248, 113, 113, 0.2); }
+        .tracking-gps-badge[data-gps-state="completed"],
+        .tracking-gps-badge[data-gps-state="paused"] { color: #cbd5e1; }
+        .tracking-control-locked .tracking-screen-actions .tracking-action-button {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+        .tracking-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.65rem;
+        }
         .leaflet-container {
             background: #111519;
             font: inherit;
@@ -262,10 +324,17 @@
             bottom: 0;
             z-index: 500;
             display: flex;
+            flex-wrap: wrap;
             justify-content: flex-end;
             gap: 0.75rem;
             padding: 0.9rem 0 0.25rem;
             background: linear-gradient(180deg, transparent, #0b0d0f 28%);
+        }
+        .tracking-screen-actions .tracking-action-button {
+            flex: 1 1 38%;
+        }
+        .tracking-screen-actions button:not(.tracking-action-button) {
+            flex: 1 1 40%;
         }
         @media (prefers-reduced-motion: reduce) {
             .tracking-is-active .tracking-speed-value,
@@ -273,6 +342,18 @@
             .tracking-stat-card,
             .tracking-map-shell {
                 animation: none;
+            }
+            @media (max-width: 640px) {
+                .tracking-map-shell.tracking-map-expanded {
+                    inset: max(0.35rem, env(safe-area-inset-top)) max(0.35rem, env(safe-area-inset-right)) max(0.35rem, env(safe-area-inset-bottom)) max(0.35rem, env(safe-area-inset-left));
+                }
+                .tracking-map-shell.tracking-map-expanded #tracking-metrics-map {
+                    height: auto;
+                    min-height: 0;
+                }
+                .tracking-summary-grid {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
             }
         }
         @media (max-width: 640px) {
@@ -340,6 +421,10 @@
                 flex: 1;
                 min-height: 3.25rem;
                 justify-content: center;
+            }
+            .tracking-screen-actions .tracking-action-button,
+            .tracking-screen-actions button:not(.tracking-action-button) {
+                flex: 1 1 45%;
             }
         }
     </style>
@@ -500,6 +585,25 @@
 
     <script type="module" src="./src/supabase.js"></script>
     <script>
+        function loadAutoPausePreference() {
+            try {
+                return localStorage.getItem('ride-x-auto-pause') === 'true';
+            } catch (error) {
+                console.warn('Não foi possível recuperar a preferência de pausa automática:', error);
+                return false;
+            }
+        }
+
+        function loadDistanceGoal() {
+            try {
+                const goal = Number(localStorage.getItem('ride-x-weekly-distance-goal'));
+                return Number.isFinite(goal) && goal > 0 ? goal : null;
+            } catch (error) {
+                console.warn('Não foi possível recuperar a meta semanal de distância:', error);
+                return null;
+            }
+        }
+
         // Mock State Data
         const state = {
             currentView: 'landing',
@@ -525,6 +629,14 @@
             gpsSpeedSamples: [],
             gpsAccuracyMeters: null,
             gpsLastPositionAt: null,
+            gpsStatus: 'searching',
+            gpsLastReadingAt: null,
+            autoPauseEnabled: loadAutoPausePreference(),
+            autoPauseSince: null,
+            autoPauseTriggered: false,
+            controlsLocked: false,
+            completedRide: null,
+            distanceGoalKm: loadDistanceGoal(),
             screenWakeLock: null,
             gpsSaveQueue: Promise.resolve(),
             trackingTimer: null,
@@ -554,6 +666,9 @@
         let activityMap = null;
         let activityTrackLine = null;
         let activityPositionMarker = null;
+        let activityStartMarker = null;
+        let activityFinishMarker = null;
+        let activityMapFollowsPosition = true;
         let activityMapActivityId = null;
         let editingActivityId = null;
         let editingBicycleId = null;
@@ -777,6 +892,12 @@
 
         // 2. Dashboard View HTML Generator
         function renderDashboardView() {
+            const elevationActivities = state.activities.filter(activity =>
+                activity.tracking_mode === 'manual' || Number(activity.elevation_m) > 0
+                || (activity.local_only && calculateTrackMetrics(activity.points || []).elevation_available)
+            );
+            const hasElevationData = elevationActivities.length > 0;
+            const totalElevation = elevationActivities.reduce((total, activity) => total + Math.max(0, Number(activity.elevation_m) || 0), 0);
             return `
                 <div class="space-y-8 animate-in fade-in duration-300">
                     <!-- Stat Grid -->
@@ -795,7 +916,7 @@
                                 <span class="text-xs font-semibold uppercase tracking-wider">Elevação Acumulada</span>
                                 <i class="fa-solid fa-mountain text-lime text-lg"></i>
                             </div>
-                            <div class="text-3xl font-black text-white">${state.activities.reduce((total, activity) => total + Number(activity.elevation_m || 0), 0).toLocaleString('pt-BR')} m</div>
+                            <div class="text-3xl font-black text-white">${hasElevationData ? `${totalElevation.toLocaleString('pt-BR')} m` : 'Aguardando dados'}</div>
                             <p class="text-xs text-lime font-medium">Elevação registrada</p>
                         </div>
 
@@ -817,6 +938,8 @@
                             <p class="text-xs text-slate-400 font-medium">Sem dados registrados</p>
                         </div>
                     </div>
+
+                    ${renderHistoryInsights()}
 
                     <!-- Main Dashboard Split -->
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -1280,10 +1403,16 @@
 
         // Modal Controllers
         function disposeActivityMap() {
-            if (activityMap) activityMap.remove();
+            if (activityMap) {
+                activityMap.stop();
+                activityMap.remove();
+            }
             activityMap = null;
             activityTrackLine = null;
             activityPositionMarker = null;
+            activityStartMarker = null;
+            activityFinishMarker = null;
+            activityMapFollowsPosition = true;
             activityMapActivityId = null;
             if (state.trackingTimer) {
                 clearInterval(state.trackingTimer);
@@ -1614,6 +1743,66 @@
             return `<div class="col-span-full rounded-2xl border border-dashed border-grafite-500 p-8 text-center"><i class="fa-solid fa-folder-open text-2xl text-slate-500"></i><p class="mt-3 font-semibold text-white">${escapeHTML(title)}</p><p class="mt-1 text-sm text-slate-400">${escapeHTML(description)}</p></div>`;
         }
 
+        function getCompletedActivities() {
+            return state.activities.filter(activity => activity.status === 'completed' && Number.isFinite(Date.parse(activity.started_at)));
+        }
+
+        function renderHistoryInsights() {
+            const completed = getCompletedActivities();
+            const now = new Date();
+            const weekStart = new Date(now);
+            const weekday = (weekStart.getDay() + 6) % 7;
+            weekStart.setHours(0, 0, 0, 0);
+            weekStart.setDate(weekStart.getDate() - weekday);
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const thisWeek = completed.filter(activity => Date.parse(activity.started_at) >= weekStart.getTime());
+            const thisMonth = completed.filter(activity => Date.parse(activity.started_at) >= monthStart.getTime());
+            const sumDistance = activities => activities.reduce((sum, activity) => sum + Math.max(0, Number(activity.distance_km) || 0), 0);
+            const weeklyDistance = sumDistance(thisWeek);
+            const monthlyDistance = sumDistance(thisMonth);
+            const record = completed.reduce((best, activity) => Number(activity.distance_km) > Number(best?.distance_km || 0) ? activity : best, null);
+            const goal = state.distanceGoalKm;
+            const progress = goal ? Math.min(100, weeklyDistance / goal * 100) : 0;
+            return `<section class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Estatísticas do histórico">
+                <article class="glass-panel rounded-2xl border border-grafite-600 p-4">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Esta semana</p>
+                    <strong class="mt-1 block text-xl font-extrabold text-white">${weeklyDistance.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km</strong>
+                    <span class="text-xs text-slate-400">${thisWeek.length} pedaladas concluídas</span>
+                </article>
+                <article class="glass-panel rounded-2xl border border-grafite-600 p-4">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Este mês</p>
+                    <strong class="mt-1 block text-xl font-extrabold text-white">${monthlyDistance.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km</strong>
+                    <span class="text-xs text-slate-400">${thisMonth.length} pedaladas concluídas</span>
+                </article>
+                <article class="glass-panel rounded-2xl border border-grafite-600 p-4">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Recorde de distância</p>
+                    <strong class="mt-1 block truncate text-xl font-extrabold text-white">${record ? `${Number(record.distance_km).toLocaleString('pt-BR')} km` : 'Aguardando dados'}</strong>
+                    <span class="text-xs text-slate-400">${record ? escapeHTML(record.name) : 'Nenhuma pedalada concluída'}</span>
+                </article>
+                <article class="glass-panel rounded-2xl border border-grafite-600 p-4">
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Meta semanal · neste aparelho</p>
+                            <strong class="mt-1 block text-xl font-extrabold text-white">${goal ? `${weeklyDistance.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} / ${goal.toLocaleString('pt-BR')} km` : 'Sem meta definida'}</strong>
+                        </div>
+                        <button type="button" onclick="editDistanceGoal()" class="rounded-lg border border-grafite-500 px-2.5 py-1.5 text-xs font-bold text-lime hover:bg-grafite-700" aria-label="${goal ? 'Editar meta semanal' : 'Definir meta semanal'}">${goal ? 'Editar' : 'Definir'}</button>
+                    </div>
+                    ${goal ? `<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-grafite-700"><div class="h-full rounded-full bg-lime transition-all" style="width:${progress}%"></div></div>` : ''}
+                </article>
+            </section>`;
+        }
+
+        function formatActivityElevation(activity) {
+            const elevation = Math.max(0, Number(activity.elevation_m) || 0);
+            if (activity.tracking_mode === 'manual' || elevation > 0) {
+                return `${elevation.toLocaleString('pt-BR')} m`;
+            }
+            if (activity.local_only && calculateTrackMetrics(activity.points || []).elevation_available) {
+                return `${elevation.toLocaleString('pt-BR')} m`;
+            }
+            return 'Aguardando dados';
+        }
+
         function renderActivityList() {
             if (!state.authUser && state.activities.length === 0) return renderEmptyState('Nenhuma pedalada salva neste dispositivo', 'Inicie uma pedalada para registrar o percurso. Sem login, os dados ficam salvos somente neste navegador.');
             if (state.activities.length === 0) return renderEmptyState('Nenhuma atividade registrada', 'Inicie uma atividade pelo botão flutuante ou registre uma atividade manualmente.');
@@ -1625,7 +1814,7 @@
                             <span class="rounded-full px-2 py-0.5 text-[10px] font-bold ${activity.status === 'in_progress' ? 'bg-lime/10 text-lime' : 'bg-grafite-700 text-slate-300'}">${activity.status === 'in_progress' ? 'Em andamento' : activity.status === 'paused' ? 'Pausada' : 'Concluída'}</span>
                             ${activity.local_only ? '<span class="rounded-full px-2 py-0.5 text-[10px] font-bold bg-sky-500/10 text-sky-300">Salva neste dispositivo</span>' : ''}
                         </div>
-                        <p class="mt-1 text-xs text-slate-400">${new Date(activity.started_at).toLocaleString('pt-BR')} · ${Number(activity.distance_km).toLocaleString('pt-BR')} km · ${Number(activity.elevation_m).toLocaleString('pt-BR')} m</p>
+                        <p class="mt-1 text-xs text-slate-400">${new Date(activity.started_at).toLocaleString('pt-BR')} · ${Number(activity.distance_km).toLocaleString('pt-BR')} km · ${formatDuration(getTotalElapsedSeconds(activity))} · média geral ${getElapsedSeconds(activity) > 0 ? formatSpeedKmh(Number(activity.distance_km || 0) * 1000 / getElapsedSeconds(activity)) : 'Aguardando dados'} · elevação ${formatActivityElevation(activity)}</p>
                         ${activity.notes ? `<p class="mt-1 text-sm text-slate-300">${escapeHTML(activity.notes)}</p>` : ''}
                     </div>
                     <div class="flex gap-2 shrink-0">
@@ -1655,6 +1844,36 @@
             if (!value) return '';
             const date = new Date(value);
             return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        }
+
+        function editDistanceGoal() {
+            openModal('Meta semanal de distância', `
+                <div class="space-y-2">
+                    <label for="weekly-distance-goal" class="text-xs font-semibold text-slate-300">Distância desejada por semana (km)</label>
+                    <input id="weekly-distance-goal" type="number" min="1" max="5000" step="1" value="${state.distanceGoalKm ?? ''}" placeholder="Ex.: 100" class="w-full rounded-xl border border-grafite-600 bg-grafite-700 px-4 py-3 text-white focus:border-lime focus:outline-none">
+                    <p class="text-xs text-slate-500">A meta fica salva somente neste navegador e não altera nem estima seus dados de atividade.</p>
+                </div>
+            `);
+            setModalAction('Salvar meta', saveDistanceGoal);
+        }
+
+        function saveDistanceGoal() {
+            const goal = Number(document.getElementById('weekly-distance-goal')?.value);
+            if (!Number.isFinite(goal) || goal < 1 || goal > 5000) {
+                showToast('Informe uma meta semanal entre 1 e 5.000 km.', 'info');
+                return;
+            }
+            try {
+                localStorage.setItem('ride-x-weekly-distance-goal', String(goal));
+            } catch (error) {
+                console.error('Falha ao salvar a meta semanal de distância:', error);
+                showToast('Não foi possível salvar a meta neste navegador.', 'info');
+                return;
+            }
+            state.distanceGoalKm = goal;
+            closeModal();
+            renderContent();
+            showToast('Meta semanal atualizada.', 'success');
         }
 
         function openActivityModal(activityId = null, name = '') {
@@ -1890,9 +2109,21 @@
         function calculateTrackDistanceMeters(points) {
             let distance = 0;
             for (let index = 1; index < points.length; index += 1) {
-                if (!points[index].segment_start) distance += haversineMeters(points[index - 1], points[index]);
+                if (!points[index].segment_start) {
+                    const rawDistance = haversineMeters(points[index - 1], points[index]);
+                    distance += Math.max(0, rawDistance - getTrackNoiseThreshold(points[index - 1], points[index]));
+                }
             }
             return distance;
+        }
+
+        function getTrackNoiseThreshold(first, second) {
+            if (first.source !== 'gps' || second.source !== 'gps') return 0;
+            const accuracies = [first.accuracy_m, second.accuracy_m].filter(value => Number.isFinite(value) && value > 0);
+            const averageAccuracy = accuracies.length
+                ? accuracies.reduce((sum, value) => sum + value, 0) / accuracies.length
+                : 6;
+            return Math.max(3, Math.min(30, averageAccuracy));
         }
 
         function calculateTrackSummary(points) {
@@ -1909,6 +2140,59 @@
                 distance_km: Number((distance / 1000).toFixed(2)),
                 elevation_m: Math.min(30000, Math.round(elevationGain))
             };
+        }
+
+        function calculateTrackMetrics(points) {
+            let movingSeconds = 0;
+            let movingDistanceMeters = 0;
+            let maximumSpeedMps = null;
+            let elevationAvailable = false;
+            let movingDataAvailable = false;
+            for (let index = 1; index < points.length; index += 1) {
+                const previous = points[index - 1];
+                const current = points[index];
+                if (!current.segment_start && Number.isFinite(previous.altitude_m) && Number.isFinite(current.altitude_m)) {
+                    elevationAvailable = true;
+                }
+                if (current.segment_start || !previous.recorded_at || !current.recorded_at) continue;
+                const elapsed = (Date.parse(current.recorded_at) - Date.parse(previous.recorded_at)) / 1000;
+                if (!Number.isFinite(elapsed) || elapsed <= 0 || elapsed > 15) continue;
+                movingDataAvailable = true;
+                const correctedDistance = Math.max(0, haversineMeters(previous, current) - getTrackNoiseThreshold(previous, current));
+                const speed = correctedDistance / elapsed;
+                if (!Number.isFinite(speed) || speed > MAX_CYCLING_SPEED_METERS_PER_SECOND) continue;
+                maximumSpeedMps = maximumSpeedMps === null ? speed : Math.max(maximumSpeedMps, speed);
+                if (speed >= 1) {
+                    movingSeconds += elapsed;
+                    movingDistanceMeters += correctedDistance;
+                }
+            }
+            const summary = calculateTrackSummary(points);
+            const movingSpeedMps = movingSeconds > 0
+                ? movingDistanceMeters / movingSeconds
+                : null;
+            return {
+                ...summary,
+                moving_seconds: Math.round(movingSeconds),
+                moving_speed_mps: movingSpeedMps,
+                maximum_speed_mps: maximumSpeedMps,
+                elevation_available: elevationAvailable,
+                moving_data_available: movingDataAvailable
+            };
+        }
+
+        function getTotalElapsedSeconds(activity) {
+            const started = Date.parse(activity.started_at);
+            if (!Number.isFinite(started)) return 0;
+            const ended = activity.ended_at ? Date.parse(activity.ended_at) : Date.now();
+            return Math.max(0, Math.floor((ended - started) / 1000));
+        }
+
+        function formatDuration(seconds) {
+            const safeSeconds = Math.max(0, Math.floor(seconds));
+            const hours = String(Math.floor(safeSeconds / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor(safeSeconds % 3600 / 60)).padStart(2, '0');
+            return `${hours}:${minutes}:${String(safeSeconds % 60).padStart(2, '0')}`;
         }
 
         function getVisibleGpsPoints() {
@@ -1955,10 +2239,7 @@
             const previous = priorPoints[priorPoints.length - 1];
             if (previous) {
                 const distance = haversineMeters(previous, point);
-                const accuracies = [previous.accuracy_m, point.accuracy_m].filter(Number.isFinite);
-                const noiseThreshold = Math.max(2, Math.min(10, accuracies.length
-                    ? accuracies.reduce((sum, value) => sum + value, 0) / accuracies.length * 0.5
-                    : 2));
+                const noiseThreshold = Math.max(2, getTrackNoiseThreshold(previous, point));
                 if (distance < noiseThreshold && !point.segment_start) return { error: null, skip: true };
                 if (checkSpeed && !point.segment_start && previous.recorded_at && point.recorded_at) {
                     const elapsed = (Date.parse(point.recorded_at) - Date.parse(previous.recorded_at)) / 1000;
@@ -2049,7 +2330,10 @@
                 state.activeActivity = { ...state.activeActivity, ...summary };
                 persistLocalActivity();
                 state.gpsSignalLost = false;
-                updateTrackingStatus('GPS conectado · percurso salvo neste dispositivo');
+                updateGpsStatus(point.accuracy_m > 25 ? 'weak' : 'connected',
+                    point.accuracy_m > 25
+                        ? `Sinal GPS fraco · precisão estimada ±${Math.round(point.accuracy_m)} m`
+                        : 'GPS conectado · percurso salvo neste dispositivo');
                 updateTrackDisplay();
                 return;
             }
@@ -2070,7 +2354,10 @@
             if (!updatedActivity) throw new Error('Pedalada não encontrada ou não autorizada.');
             state.activeActivity = { ...state.activeActivity, ...summary };
             state.gpsSignalLost = false;
-            updateTrackingStatus('GPS conectado · posição registrada');
+            updateGpsStatus(pending.accuracy_m > 25 ? 'weak' : 'connected',
+                pending.accuracy_m > 25
+                    ? `Sinal GPS fraco · precisão estimada ±${Math.round(pending.accuracy_m)} m`
+                    : 'GPS conectado · posição registrada');
             updateTrackDisplay();
         }
 
@@ -2096,15 +2383,43 @@
             }
         }
 
-        function updateTrackingStatus(message) {
-            const status = document.getElementById('tracking-status');
-            if (status) status.textContent = message;
+        function updateGpsStatus(status, message) {
+            state.gpsStatus = status;
+            state.gpsSignalLost = status === 'reconnecting' || status === 'unavailable';
+            const statusElement = document.getElementById('tracking-status');
+            if (statusElement) statusElement.textContent = message;
             const stateLabel = document.getElementById('tracking-state-label');
-            if (stateLabel && state.activeActivity) {
-                stateLabel.textContent = state.activeActivity.status === 'paused'
-                    ? 'Pausada'
-                    : state.gpsSignalLost ? 'Buscando GPS' : 'Gravando';
+            const labels = {
+                searching: 'Buscando GPS',
+                connected: 'Gravando',
+                weak: 'Sinal fraco',
+                reconnecting: 'Reconectando',
+                unavailable: 'GPS indisponível',
+                paused: 'Pausada',
+                completed: 'Finalizada'
+            };
+            if (stateLabel) {
+                stateLabel.textContent = state.activeActivity?.status === 'paused'
+                    ? labels.paused
+                    : state.activeActivity?.status === 'completed' ? labels.completed : labels[status];
             }
+            const badge = document.getElementById('tracking-gps-badge');
+            if (badge) {
+                badge.dataset.gpsState = status;
+                badge.innerHTML = `<i class="fa-solid ${status === 'connected' ? 'fa-satellite-dish' : status === 'unavailable' ? 'fa-triangle-exclamation' : 'fa-location-crosshairs'}" aria-hidden="true"></i><span>${labels[status]}</span>`;
+            }
+        }
+
+        function updateTrackingStatus(message) {
+            const normalized = message.toLocaleLowerCase('pt-BR');
+            const status = state.activeActivity?.status === 'paused'
+                ? 'paused'
+                : state.activeActivity?.status === 'completed' ? 'completed'
+                    : normalized.includes('permissão') || normalized.includes('indisponível') ? 'unavailable'
+                        : normalized.includes('precisão') || normalized.includes('fraco') ? 'weak'
+                            : normalized.includes('buscando') || normalized.includes('reconect') || state.gpsSignalLost ? 'reconnecting'
+                                : 'connected';
+            updateGpsStatus(status, message);
         }
 
         function updateTrackDisplay(points = getVisibleGpsPoints(), activityId = state.activeActivity?.id) {
@@ -2113,9 +2428,24 @@
             const elevation = document.getElementById('tracking-elevation');
             const pointCount = document.getElementById('tracking-point-count');
             const summary = calculateTrackSummary(points);
+            const metrics = calculateTrackMetrics(points);
             if (distance) distance.textContent = `${summary.distance_km.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} km`;
-            if (elevation) elevation.textContent = `${summary.elevation_m.toLocaleString('pt-BR')} m`;
+            if (elevation) elevation.textContent = metrics.elevation_available
+                ? `${summary.elevation_m.toLocaleString('pt-BR')} m`
+                : 'Aguardando dados';
             if (pointCount) pointCount.textContent = String(points.length);
+            const averageSpeed = document.getElementById('tracking-average-speed');
+            if (averageSpeed) averageSpeed.textContent = metrics.moving_speed_mps === null
+                ? 'Aguardando dados'
+                : formatSpeedKmh(metrics.moving_speed_mps);
+            const maximumSpeed = document.getElementById('tracking-maximum-speed');
+            if (maximumSpeed) maximumSpeed.textContent = metrics.maximum_speed_mps === null
+                ? 'Aguardando dados'
+                : formatSpeedKmh(metrics.maximum_speed_mps);
+            const movingTime = document.getElementById('tracking-moving-time');
+            if (movingTime) movingTime.textContent = metrics.moving_data_available
+                ? formatDuration(metrics.moving_seconds)
+                : 'Aguardando dados';
             if (!activityMap || !window.L) return;
             if (activityMapActivityId && activityId !== activityMapActivityId) return;
             const segments = [];
@@ -2128,12 +2458,104 @@
                 .map(segment => L.polyline(segment, { color: '#B7F34A', weight: 5, opacity: 0.9 }))).addTo(activityMap);
             const latLngs = points.map(point => [point.latitude, point.longitude]);
             if (latLngs.length) {
+                if (!activityStartMarker) {
+                    activityStartMarker = L.circleMarker(latLngs[0], {
+                        radius: 6, color: '#0B0D0F', weight: 2, fillColor: '#FFFFFF', fillOpacity: 1
+                    }).bindTooltip('Início').addTo(activityMap);
+                } else activityStartMarker.setLatLng(latLngs[0]);
                 if (activityPositionMarker) activityPositionMarker.setLatLng(latLngs[latLngs.length - 1]);
                 else activityPositionMarker = L.circleMarker(latLngs[latLngs.length - 1], {
                     radius: 7, color: '#0B0D0F', weight: 2, fillColor: '#B7F34A', fillOpacity: 1
                 }).addTo(activityMap);
-                activityMap.setView(latLngs[latLngs.length - 1], Math.max(activityMap.getZoom(), 15));
+                if (state.activeActivity?.status === 'completed'
+                    || state.completedRide?.id === activityId
+                    || state.activities.some(activity => activity.id === activityId && activity.status === 'completed')) {
+                    if (activityFinishMarker) activityFinishMarker.setLatLng(latLngs[latLngs.length - 1]);
+                    else activityFinishMarker = L.circleMarker(latLngs[latLngs.length - 1], {
+                        radius: 6, color: '#0B0D0F', weight: 2, fillColor: '#F87171', fillOpacity: 1
+                    }).bindTooltip('Fim').addTo(activityMap);
+                }
+                if (activityMapFollowsPosition) {
+                    activityMap.setView(latLngs[latLngs.length - 1], Math.max(activityMap.getZoom(), 15));
+                }
             }
+        }
+
+        function centerActivityMap() {
+            if (!activityMap || !activityPositionMarker) {
+                showToast('Aguardando uma posição GPS válida para centralizar o mapa.', 'info');
+                return;
+            }
+            activityMapFollowsPosition = true;
+            activityMap.setView(activityPositionMarker.getLatLng(), Math.max(activityMap.getZoom(), 15), { animate: true });
+        }
+
+        function toggleExpandedActivityMap() {
+            const shell = document.querySelector('.tracking-map-shell');
+            if (!shell) return;
+            const expanded = shell.classList.toggle('tracking-map-expanded');
+            const button = document.getElementById('tracking-map-expand');
+            if (button) {
+                button.setAttribute('aria-label', expanded ? 'Reduzir mapa' : 'Expandir mapa');
+                button.innerHTML = `<i class="fa-solid ${expanded ? 'fa-compress' : 'fa-expand'}" aria-hidden="true"></i>`;
+            }
+            if (activityMap) requestAnimationFrame(() => activityMap?.invalidateSize());
+        }
+
+        function toggleAutoPause() {
+            state.autoPauseEnabled = !state.autoPauseEnabled;
+            state.autoPauseSince = null;
+            state.autoPauseTriggered = false;
+            try {
+                localStorage.setItem('ride-x-auto-pause', String(state.autoPauseEnabled));
+            } catch (error) {
+                console.error('Falha ao salvar a preferência de pausa automática:', error);
+                state.autoPauseEnabled = !state.autoPauseEnabled;
+                showToast('Não foi possível salvar a preferência de pausa automática neste aparelho.', 'info');
+                return;
+            }
+            openTrackingModal();
+            showToast(state.autoPauseEnabled
+                ? 'Pausa automática ativada. Pausa após 60 s parado com sinal GPS confiável.'
+                : 'Pausa automática desativada.', 'success');
+        }
+
+        function toggleTrackingControls() {
+            state.controlsLocked = !state.controlsLocked;
+            const screen = document.querySelector('.tracking-screen');
+            if (screen) screen.classList.toggle('tracking-control-locked', state.controlsLocked);
+            screen?.querySelectorAll('.tracking-action-button').forEach(button => {
+                button.disabled = state.controlsLocked;
+            });
+            const button = document.getElementById('tracking-control-lock');
+            if (button) {
+                button.setAttribute('aria-pressed', String(state.controlsLocked));
+                button.innerHTML = `<i class="fa-solid ${state.controlsLocked ? 'fa-lock-open' : 'fa-lock'}"></i>${state.controlsLocked ? 'Desbloquear controles' : 'Bloquear controles'}`;
+            }
+            showToast(state.controlsLocked ? 'Controles de pausa e finalização bloqueados.' : 'Controles desbloqueados.', 'success');
+        }
+
+        function updateAutoPause(position) {
+            if (!state.autoPauseEnabled || state.activeActivity?.status !== 'in_progress' || state.autoPauseTriggered) return;
+            const accuracy = position.coords.accuracy;
+            const deviceSpeed = position.coords.speed;
+            if (!Number.isFinite(accuracy) || accuracy > 25) {
+                state.autoPauseSince = null;
+                return;
+            }
+            const speed = Number.isFinite(deviceSpeed) && deviceSpeed >= 0
+                ? Math.max(deviceSpeed, state.gpsCurrentSpeedMps)
+                : state.gpsCurrentSpeedMps;
+            if (speed <= 1.2) {
+                state.autoPauseSince ??= Date.now();
+                if (Date.now() - state.autoPauseSince >= 60000) {
+                    state.autoPauseTriggered = true;
+                    showToast('Pedalada pausada automaticamente após 60 segundos parado.', 'success');
+                    void pauseActivity();
+                }
+                return;
+            }
+            if (speed > 1.2) state.autoPauseSince = null;
         }
 
         function initializeActivityMap(points, activityId) {
@@ -2150,9 +2572,15 @@
             const last = points[points.length - 1];
             activityMap = L.map(mapElement).setView([last.latitude, last.longitude], 15);
             activityMapActivityId = activityId;
+            activityMapFollowsPosition = !points.length || state.activeActivity?.id === activityId;
+            activityMap.on('dragstart', () => {
+                activityMapFollowsPosition = false;
+            });
             addRideXMapTiles(activityMap);
             updateTrackDisplay(points, activityId);
-            if (activityTrackLine.getLayers().length) activityMap.fitBounds(activityTrackLine.getBounds(), { padding: [24, 24] });
+            if (activityTrackLine.getLayers().length) {
+                activityMap.fitBounds(activityTrackLine.getBounds(), { padding: [24, 24], animate: false });
+            }
         }
 
         function formatElapsedTime(activity) {
@@ -2188,21 +2616,50 @@
         function updateElapsedTime(activity = state.activeActivity, points = getVisibleGpsPoints()) {
             const target = document.getElementById('tracking-elapsed');
             if (!activity) return;
-            if (target) target.textContent = formatElapsedTime(activity);
+            if (target) target.textContent = formatDuration(getTotalElapsedSeconds(activity));
             if (state.gpsLastPositionAt && Date.now() - state.gpsLastPositionAt > 15000) {
                 state.gpsCurrentSpeedMps = 0;
                 state.gpsSpeedSamples = [];
             }
+            const metrics = calculateTrackMetrics(points);
             const currentSpeed = document.getElementById('tracking-speed');
             if (currentSpeed) currentSpeed.textContent = activity.status === 'completed'
-                ? '—'
+                ? metrics.maximum_speed_mps === null ? '—' : formatSpeedKmh(metrics.maximum_speed_mps).replace(' km/h', '')
+                : ['unavailable', 'weak', 'searching', 'reconnecting'].includes(state.gpsStatus) ? '—'
                 : formatSpeedKmh(state.gpsCurrentSpeedMps).replace(' km/h', '');
-            const averageSpeed = document.getElementById('tracking-average-speed');
-            if (averageSpeed) {
-                const elapsedSeconds = getElapsedSeconds(activity);
-                const distanceMeters = calculateTrackDistanceMeters(points);
-                averageSpeed.textContent = formatSpeedKmh(elapsedSeconds > 0 ? distanceMeters / elapsedSeconds : 0);
+            if (state.gpsLastReadingAt && Date.now() - state.gpsLastReadingAt > 15000
+                && state.activeActivity?.status === 'in_progress'
+                && ['connected', 'weak'].includes(state.gpsStatus)) {
+                updateGpsStatus('reconnecting', 'Sem posição GPS recente · tentando reconectar');
             }
+            const movingTime = document.getElementById('tracking-moving-time');
+            if (movingTime) {
+                const lastPoint = points.at(-1);
+                const lastTwo = points.slice(-2);
+                const recentSpeed = lastTwo.length === 2 && !lastTwo[1].segment_start
+                    ? (() => {
+                        const interval = (Date.parse(lastTwo[1].recorded_at) - Date.parse(lastTwo[0].recorded_at)) / 1000;
+                        const distance = Math.max(0, haversineMeters(lastTwo[0], lastTwo[1])
+                            - getTrackNoiseThreshold(lastTwo[0], lastTwo[1]));
+                        return interval > 0 && interval <= 15 ? distance / interval : 0;
+                    })()
+                    : 0;
+                const liveMovingSeconds = activity.status === 'in_progress' && lastPoint?.recorded_at
+                    && recentSpeed >= 1
+                    ? Math.min(15, Math.max(0, Math.floor((Date.now() - Date.parse(lastPoint.recorded_at)) / 1000)))
+                    : 0;
+                movingTime.textContent = metrics.moving_data_available
+                    ? formatDuration(metrics.moving_seconds + liveMovingSeconds)
+                    : 'Aguardando dados';
+            }
+            const averageSpeed = document.getElementById('tracking-average-speed');
+            if (averageSpeed) averageSpeed.textContent = metrics.moving_speed_mps === null
+                ? 'Aguardando dados'
+                : formatSpeedKmh(metrics.moving_speed_mps);
+            const maximumSpeed = document.getElementById('tracking-maximum-speed');
+            if (maximumSpeed) maximumSpeed.textContent = metrics.maximum_speed_mps === null
+                ? 'Aguardando dados'
+                : formatSpeedKmh(metrics.maximum_speed_mps);
             const accuracy = document.getElementById('tracking-accuracy');
             if (accuracy) {
                 const lastPointAccuracy = points.at(-1)?.accuracy_m;
@@ -2215,43 +2672,57 @@
             }
         }
 
-        function openTrackingModal(readOnly = false, viewedActivity = state.activeActivity, viewedPoints = getVisibleGpsPoints()) {
+        function openTrackingModal(readOnly = false, viewedActivity = state.activeActivity, viewedPoints = getVisibleGpsPoints(), summaryMode = false) {
             if (!viewedActivity && !readOnly) return;
             const activity = viewedActivity;
             const points = viewedPoints;
-            openModal(readOnly ? 'Mapa da pedalada' : 'Gravando pedalada', `
-                <div class="tracking-screen ${!readOnly && activity.status === 'in_progress' ? 'tracking-is-active' : ''}">
+            const metrics = calculateTrackMetrics(points);
+            openModal(summaryMode ? 'Resumo da pedalada' : readOnly ? 'Mapa da pedalada' : 'Gravando pedalada', `
+                <div class="tracking-screen ${!readOnly && activity.status === 'in_progress' ? 'tracking-is-active' : ''} ${state.controlsLocked ? 'tracking-control-locked' : ''}">
                     <div class="tracking-layout">
                         <div class="tracking-overview">
                             <section class="tracking-hero">
                                 <div class="min-w-0">
-                                    <p class="text-[10px] font-extrabold uppercase tracking-[0.18em] text-lime/80">Velocidade atual</p>
+                                    <p class="text-[10px] font-extrabold uppercase tracking-[0.18em] text-lime/80">${summaryMode || activity.status === 'completed' ? 'Velocidade máxima' : 'Velocidade atual'}</p>
                                     <div class="mt-2 flex items-baseline gap-2">
-                                        <strong id="tracking-speed" class="tracking-speed-value">${formatSpeedKmh(state.gpsCurrentSpeedMps).replace(' km/h', '')}</strong>
+                                        <strong id="tracking-speed" class="tracking-speed-value">${summaryMode || activity.status === 'completed'
+                                            ? metrics.maximum_speed_mps === null ? '—' : formatSpeedKmh(metrics.maximum_speed_mps).replace(' km/h', '')
+                                            : formatSpeedKmh(state.gpsCurrentSpeedMps).replace(' km/h', '')}</strong>
                                         <span class="text-xs font-bold uppercase tracking-wider text-slate-400">km/h</span>
                                     </div>
                                 </div>
                                 <div class="min-w-[104px] text-right">
-                                    <span class="inline-flex items-center gap-2 rounded-full border border-lime/20 bg-lime/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-lime">
-                                        <span class="tracking-live-dot"></span>
-                                        <span id="tracking-state-label">${activity.status === 'paused' ? 'Pausada' : activity.status === 'completed' ? 'Finalizada' : 'Gravando'}</span>
+                                    <span id="tracking-gps-badge" class="tracking-gps-badge" data-gps-state="${activity.status === 'completed' ? 'completed' : activity.status === 'paused' ? 'paused' : state.gpsStatus}">
+                                        <i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i>
+                                        <span id="tracking-state-label">${activity.status === 'paused' ? 'Pausada' : activity.status === 'completed' ? 'Finalizada' : 'Buscando GPS'}</span>
                                     </span>
-                                    <span id="tracking-elapsed" class="mt-3 block font-mono text-xl font-bold tabular-nums text-white">${formatElapsedTime(activity)}</span>
-                                    <span class="mt-0.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Tempo de pedal</span>
+                                    <span id="tracking-elapsed" class="mt-3 block font-mono text-xl font-bold tabular-nums text-white">${formatDuration(getTotalElapsedSeconds(activity))}</span>
+                                    <span class="mt-0.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Tempo decorrido</span>
                                 </div>
                             </section>
                             <section class="grid grid-cols-3 gap-2" aria-label="Métricas da pedalada">
                                 <div class="tracking-stat-card">
                                     <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Distância</span>
-                                    <strong id="tracking-distance" class="mt-1 block truncate text-lg font-extrabold tabular-nums text-white">0,00 km</strong>
+                                    <strong id="tracking-distance" class="mt-1 block truncate text-lg font-extrabold tabular-nums text-white">${metrics.distance_km.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} km</strong>
                                 </div>
                                 <div class="tracking-stat-card">
-                                    <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Média</span>
-                                    <strong id="tracking-average-speed" class="mt-1 block truncate text-lg font-extrabold tabular-nums text-white">0,0 km/h</strong>
+                                    <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Média em movimento</span>
+                                    <strong id="tracking-average-speed" class="mt-1 block truncate text-xs font-extrabold tabular-nums text-white">${metrics.moving_speed_mps === null ? 'Aguardando dados' : formatSpeedKmh(metrics.moving_speed_mps)}</strong>
+                                </div>
+                                ${summaryMode ? `<div class="tracking-stat-card">
+                                    <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Início</span>
+                                    <strong class="mt-1 block truncate text-sm font-extrabold tabular-nums text-white">${new Date(activity.started_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong>
+                                </div>` : `<div class="tracking-stat-card">
+                                    <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Velocidade máxima</span>
+                                    <strong id="tracking-maximum-speed" class="mt-1 block truncate text-xs font-extrabold tabular-nums text-white">${metrics.maximum_speed_mps === null ? 'Aguardando dados' : formatSpeedKmh(metrics.maximum_speed_mps)}</strong>
+                                </div>`}
+                                <div class="tracking-stat-card">
+                                    <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Em movimento</span>
+                                    <strong id="tracking-moving-time" class="mt-1 block truncate text-sm font-extrabold tabular-nums text-white">${metrics.moving_data_available ? formatDuration(metrics.moving_seconds) : 'Aguardando dados'}</strong>
                                 </div>
                                 <div class="tracking-stat-card">
                                     <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Elevação*</span>
-                                    <strong id="tracking-elevation" class="mt-1 block truncate text-lg font-extrabold tabular-nums text-white">0 m</strong>
+                                    <strong id="tracking-elevation" class="mt-1 block truncate text-lg font-extrabold tabular-nums text-white">${metrics.elevation_available ? `${metrics.elevation_m.toLocaleString('pt-BR')} m` : 'Aguardando dados'}</strong>
                                 </div>
                             </section>
                             <div class="tracking-gps-info">
@@ -2265,17 +2736,27 @@
                                     <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-300">Seu percurso</p>
                                     <p id="tracking-route-name" class="mt-0.5 truncate text-xs text-slate-500">${escapeHTML(activity?.name || 'Pedalada')}</p>
                                 </div>
-                                <span class="shrink-0 rounded-full bg-grafite-700 px-2.5 py-1 text-[10px] font-semibold text-slate-300"><i class="fa-solid fa-location-dot mr-1 text-lime"></i><span id="tracking-point-count">${points.length}</span> pontos</span>
+                                <div class="tracking-map-tools">
+                                    <span class="shrink-0 rounded-full bg-grafite-700 px-2.5 py-1 text-[10px] font-semibold text-slate-300"><i class="fa-solid fa-location-dot mr-1 text-lime"></i><span id="tracking-point-count">${points.length}</span></span>
+                                    <button type="button" class="tracking-map-tool" onclick="centerActivityMap()" aria-label="Centralizar posição atual" title="Centralizar posição"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i></button>
+                                    <button type="button" id="tracking-map-expand" class="tracking-map-tool" onclick="toggleExpandedActivityMap()" aria-label="Expandir mapa" title="Expandir mapa"><i class="fa-solid fa-expand" aria-hidden="true"></i></button>
+                                </div>
                             </div>
                             <div id="tracking-metrics-map" role="application" aria-label="Mapa do percurso GPS em tempo real"></div>
                         </section>
                     </div>
-                    <p class="px-1 text-[10px] leading-relaxed text-slate-500">Precisão informada pelo aparelho (não garantida). *Elevação apenas quando fornecida pelo GPS. Mantenha esta tela aberta; o navegador pode suspender o GPS em segundo plano.</p>
+                    ${summaryMode ? `<p class="px-1 text-[10px] leading-relaxed text-slate-400">Concluída em ${new Date(activity.ended_at).toLocaleString('pt-BR')}. Os valores de velocidade e tempo em movimento são derivados dos pontos GPS válidos, sem estimativa para trechos sem sinal.</p>` : '<p class="px-1 text-[10px] leading-relaxed text-slate-500">Precisão estimada pelo aparelho, não garantida. *Elevação apenas quando fornecida pelo GPS. Mantenha esta tela aberta; o navegador pode suspender o GPS em segundo plano.</p>'}
                     ${activity.local_only ? '<p class="rounded-lg border border-sky-400/15 bg-sky-400/5 px-3 py-2 text-[10px] text-sky-200/80"><i class="fa-solid fa-mobile-screen-button mr-1.5"></i>Modo de teste: salva somente neste aparelho.</p>' : ''}
-                    ${readOnly ? '' : `<div class="tracking-screen-actions">
-                        ${activity.status === 'in_progress' && state.gpsWatchId !== null ? `<button onclick="pauseActivity()" class="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-grafite-700 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-grafite-600"><i class="fa-solid fa-pause"></i>Pausar</button>` : ''}
-                        ${(activity.status === 'paused' || state.gpsWatchId === null) && !readOnly ? `<button onclick="resumeActivity()" class="inline-flex items-center gap-2 rounded-xl bg-lime px-5 py-3 text-sm font-extrabold text-grafite-900 transition-colors hover:bg-lime-hover"><i class="fa-solid fa-play"></i>Retomar pedal</button>` : ''}
-                        <button onclick="finishActivity()" class="inline-flex items-center gap-2 rounded-xl bg-red-500 px-5 py-3 text-sm font-extrabold text-white transition-colors hover:bg-red-400"><i class="fa-solid fa-flag-checkered"></i>Finalizar</button>
+                    ${readOnly ? summaryMode ? `<div class="tracking-screen-actions"><button onclick="closeModal(); switchView('dashboard')" class="tracking-action-button inline-flex min-h-12 items-center gap-2 rounded-xl bg-lime px-5 py-3 text-sm font-extrabold text-grafite-900"><i class="fa-solid fa-house"></i>Voltar ao início</button></div>` : '' : `<div class="tracking-screen-actions">
+                        ${activity.status === 'in_progress' && state.gpsWatchId !== null ? `<button onclick="pauseActivity()" ${state.controlsLocked ? 'disabled' : ''} class="tracking-action-button inline-flex min-h-12 items-center gap-2 rounded-xl border border-white/10 bg-grafite-700 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-grafite-600"><i class="fa-solid fa-pause"></i>Pausar</button>` : ''}
+                        ${(activity.status === 'paused' || state.gpsWatchId === null) ? `<button onclick="resumeActivity()" ${state.controlsLocked ? 'disabled' : ''} class="tracking-action-button inline-flex min-h-12 items-center gap-2 rounded-xl bg-lime px-5 py-3 text-sm font-extrabold text-grafite-900 transition-colors hover:bg-lime-hover"><i class="fa-solid fa-play"></i>Retomar pedal</button>` : ''}
+                        <button id="tracking-auto-pause" onclick="toggleAutoPause()" aria-pressed="${state.autoPauseEnabled}" class="inline-flex min-h-12 items-center gap-2 rounded-xl border ${state.autoPauseEnabled ? 'border-lime/30 text-lime' : 'border-white/10 text-slate-300'} bg-grafite-700 px-4 py-3 text-xs font-bold">
+                            <i class="fa-solid fa-pause-circle"></i>Pausa automática ${state.autoPauseEnabled ? 'ativada' : 'desativada'}
+                        </button>
+                        <button id="tracking-control-lock" onclick="toggleTrackingControls()" aria-pressed="${state.controlsLocked}" class="inline-flex min-h-12 items-center gap-2 rounded-xl border border-white/10 bg-grafite-700 px-4 py-3 text-xs font-bold text-slate-300">
+                            <i class="fa-solid ${state.controlsLocked ? 'fa-lock-open' : 'fa-lock'}"></i>${state.controlsLocked ? 'Desbloquear controles' : 'Bloquear controles'}
+                        </button>
+                        <button onclick="finishActivity()" ${state.controlsLocked ? 'disabled' : ''} class="tracking-action-button inline-flex min-h-12 items-center gap-2 rounded-xl bg-red-500 px-5 py-3 text-sm font-extrabold text-white transition-colors hover:bg-red-400"><i class="fa-solid fa-flag-checkered"></i>Finalizar</button>
                     </div>`}
                 </div>
             `);
@@ -2299,11 +2780,13 @@
                     ? 'Pedalada pausada · o GPS está desligado'
                     : state.gpsWatchId === null && state.activeActivity?.id === activity.id
                         ? 'Pedalada recuperada · toque em Retomar para reativar o GPS'
-                        : state.gpsSignalLost && state.activeActivity?.id === activity.id ? 'Sinal GPS perdido · tentando reconectar'
+                        : state.gpsStatus === 'unavailable' ? 'GPS indisponível · verifique a permissão de localização'
+                            : state.gpsStatus === 'weak' ? `Sinal GPS fraco · precisão estimada ±${Math.round(state.gpsAccuracyMeters || 0)} m`
+                                : state.gpsStatus === 'reconnecting' ? 'Sinal GPS instável · tentando reconectar'
                             : points.length ? `GPS conectado · ${points.length} posições válidas`
-                                : 'GPS conectado · aguardando a primeira posição válida');
-                state.trackingTimer = setInterval(updateElapsedTime, 1000);
+                                : 'Buscando GPS · aguardando a primeira posição válida');
             }
+            if (!readOnly && !summaryMode) state.trackingTimer = setInterval(updateElapsedTime, 1000);
         }
 
         async function showActivityTrack(activityId) {
@@ -2363,23 +2846,37 @@
             ensureGeolocationAvailable();
             stopPositionWatch();
             state.gpsSignalLost = false;
+            state.gpsStatus = state.gpsAccuracyMeters === null
+                ? 'searching'
+                : state.gpsAccuracyMeters > 25 ? 'weak' : 'connected';
             state.gpsWatchId = navigator.geolocation.watchPosition(position => {
                 state.gpsSaveQueue = state.gpsSaveQueue.then(async () => {
                     const converted = convertGpsPosition(position);
+                    state.gpsLastReadingAt = Date.now();
                     if (converted.error) {
-                        state.gpsSignalLost = true;
+                        const weakSignal = converted.error.includes('Precisão GPS insuficiente');
+                        updateGpsStatus(weakSignal ? 'weak' : 'reconnecting', converted.error);
                         state.gpsCurrentSpeedMps = 0;
-                        updateTrackingStatus(converted.error);
                         updateElapsedTime();
                         return;
                     }
+                    updateAutoPause(position);
+                    state.gpsLastPositionAt = Date.now();
+                    state.gpsLastReadingAt = Date.now();
+                    state.gpsAccuracyMeters = position.coords.accuracy;
+                    const weakSignal = position.coords.accuracy > 25;
+                    updateGpsStatus(weakSignal ? 'weak' : 'connected',
+                        weakSignal
+                            ? `Sinal GPS fraco · precisão estimada ±${Math.round(position.coords.accuracy)} m`
+                            : 'GPS conectado · posição recebida');
                     if (converted.point) {
                         const previous = getVisibleGpsPoints().at(-1);
                         const elapsed = previous?.recorded_at
                             ? (Date.parse(converted.point.recorded_at) - Date.parse(previous.recorded_at)) / 1000
                             : 0;
                         const calculatedSpeed = previous && elapsed > 0 && !converted.point.segment_start
-                            ? haversineMeters(previous, converted.point) / elapsed
+                            ? Math.max(0, haversineMeters(previous, converted.point)
+                                - getTrackNoiseThreshold(previous, converted.point)) / elapsed
                             : 0;
                         const deviceSpeed = position.coords.speed;
                         const speed = converted.point.accuracy_m <= 25
@@ -2392,9 +2889,13 @@
                         state.gpsSpeedSamples = [...state.gpsSpeedSamples, validSpeed].slice(-3);
                         state.gpsCurrentSpeedMps = state.gpsSpeedSamples.reduce((sum, sample) => sum + sample, 0)
                             / state.gpsSpeedSamples.length;
-                        state.gpsAccuracyMeters = converted.point.accuracy_m;
-                        state.gpsLastPositionAt = Date.now();
                         await persistTrackPoint(converted.point);
+                        updateElapsedTime();
+                    } else {
+                        const deviceSpeed = position.coords.speed;
+                        state.gpsCurrentSpeedMps = Number.isFinite(deviceSpeed) && deviceSpeed >= 0
+                            ? deviceSpeed
+                            : 0;
                         updateElapsedTime();
                     }
                 }).catch(error => {
@@ -2410,11 +2911,10 @@
                 });
             }, error => {
                 const notify = !state.gpsSignalLost || error.code === 1;
-                state.gpsSignalLost = true;
+                updateGpsStatus(error.code === 1 ? 'unavailable' : 'reconnecting', gpsErrorMessage(error));
                 state.gpsCurrentSpeedMps = 0;
                 state.gpsSpeedSamples = [];
                 const message = gpsErrorMessage(error);
-                updateTrackingStatus(message);
                 updateElapsedTime();
                 if (notify) showToast(message, 'info');
                 if (error.code === 1) {
@@ -2441,6 +2941,8 @@
                 return;
             }
             try {
+                state.gpsStatus = 'searching';
+                showToast('Buscando sinal GPS. Autorize a localização para iniciar a pedalada.', 'info');
                 const position = await getCurrentPosition();
                 const firstPoint = convertGpsPosition(position, true);
                 if (!firstPoint.point) throw new Error(firstPoint.error || 'O GPS ainda não forneceu uma posição válida.');
@@ -2472,7 +2974,10 @@
                 state.pendingGpsPoints = [];
                 state.gpsSaveQueue = Promise.resolve();
                 state.gpsSignalLost = false;
+                state.gpsStatus = 'connected';
                 state.gpsLastPositionAt = Date.now();
+                state.autoPauseSince = null;
+                state.autoPauseTriggered = false;
                 state.gpsCurrentSpeedMps = 0;
                 let firstPointError = null;
                 try {
@@ -2501,6 +3006,7 @@
                         : 'Pedalada iniciada com localização GPS.',
                     firstPointError ? 'info' : 'success');
             } catch (error) {
+                state.gpsStatus = 'unavailable';
                 console.error('Não foi possível iniciar a pedalada:', error);
                 showToast(error.message || 'Não foi possível iniciar a pedalada.', 'info');
             }
@@ -2509,6 +3015,7 @@
         async function pauseActivity() {
             if (!state.activeActivity || state.activeActivity.status !== 'in_progress') return;
             stopPositionWatch();
+            state.autoPauseSince = null;
             try {
                 await state.gpsSaveQueue;
                 const pausedAt = new Date().toISOString();
@@ -2556,6 +3063,8 @@
                 const position = await getCurrentPosition();
                 const point = convertGpsPosition(position, true);
                 if (!point.point) throw new Error(point.error || 'O GPS ainda não forneceu uma posição válida.');
+                state.autoPauseSince = null;
+                state.autoPauseTriggered = false;
                 if (state.activeActivity.local_only) {
                     if (state.activeActivity.status === 'paused') {
                         const pausedSeconds = Number(state.activeActivity.paused_seconds || 0)
@@ -2589,7 +3098,10 @@
                 showToast('Pedalada retomada.', 'success');
             } catch (error) {
                 console.error('Falha ao retomar pedalada:', error);
-                state.gpsSignalLost = true;
+                updateGpsStatus(
+                    String(error.message || '').includes('permissão') ? 'unavailable' : 'reconnecting',
+                    error.message || 'Não foi possível retomar a pedalada; confira a permissão e o sinal GPS.'
+                );
                 showToast(error.message || 'Não foi possível retomar a pedalada; confira a permissão e o sinal GPS.', 'info');
                 if (state.activeActivity) openTrackingModal();
             }
@@ -2597,13 +3109,26 @@
 
         async function finishActivity() {
             if (!state.activeActivity) return;
-            if (!window.confirm('Finalizar e salvar esta pedalada?')) return;
+            openModal('Finalizar pedalada?', `
+                <div class="space-y-4">
+                    <p class="text-sm leading-6 text-slate-300">A atividade será salva com os pontos GPS recebidos até agora. Depois de salva, você verá o resumo e o percurso completo.</p>
+                    <p class="rounded-xl border border-amber-400/15 bg-amber-400/5 px-4 py-3 text-xs leading-5 text-amber-100/80">Trechos sem sinal GPS não podem ser reconstruídos. A atividade continuará recuperável caso a sincronização falhe.</p>
+                    <button type="button" onclick="confirmDiscardActivity()" class="w-full rounded-xl border border-red-400/20 bg-red-950/30 px-4 py-3 text-sm font-bold text-red-200 transition hover:bg-red-900/40"><i class="fa-solid fa-trash mr-2"></i>Descartar esta pedalada</button>
+                </div>
+            `);
+            setModalAction('Salvar e ver resumo', completeActivity);
+            document.querySelector('#modal-footer button').onclick = () => openTrackingModal();
+        }
+
+        async function completeActivity() {
+            if (!state.activeActivity) return;
             stopPositionWatch();
             try {
                 await state.gpsSaveQueue;
+                const completedPoints = getVisibleGpsPoints();
                 if (state.activeActivity.local_only) {
                     const endedAt = new Date().toISOString();
-                    const summary = calculateTrackSummary(state.gpsPoints);
+                    const summary = calculateTrackSummary(completedPoints);
                     state.activeActivity = {
                         ...state.activeActivity,
                         ...summary,
@@ -2614,18 +3139,21 @@
                     };
                     await releaseScreenWakeLock();
                     persistLocalActivity();
+                    const completedActivity = { ...state.activeActivity, points: [...completedPoints] };
                     closeModal();
                     state.activeActivity = null;
                     state.gpsPoints = [];
+                    state.pendingGpsPoints = [];
                     state.gpsCurrentSpeedMps = 0;
                     syncActivityButton();
                     await refreshUserData();
-                    switchView('dashboard');
+                    state.completedRide = completedActivity;
+                    openTrackingModal(true, completedActivity, completedPoints, true);
                     showToast('Pedalada finalizada e salva neste dispositivo.', 'success');
                     return;
                 }
                 if (state.pendingGpsPoints.length) await flushPendingGpsPoints();
-                const summary = calculateTrackSummary(state.gpsPoints);
+                const summary = calculateTrackSummary(completedPoints);
                 const endedAt = new Date().toISOString();
                 const { data, error } = await window.rideXSupabase.from('activities').update({
                     ...summary,
@@ -2637,13 +3165,24 @@
                 if (error) throw error;
                 if (!data) throw new Error('Pedalada não encontrada ou não autorizada.');
                 await releaseScreenWakeLock();
+                const completedActivity = {
+                    ...state.activeActivity,
+                    ...summary,
+                    status: 'completed',
+                    ended_at: endedAt,
+                    paused_seconds: getFinalPausedSeconds(state.activeActivity, endedAt),
+                    paused_at: null
+                };
                 closeModal();
                 state.pendingGpsPoints = [];
                 persistPendingGpsPoints();
                 state.activeActivity = null;
                 state.gpsPoints = [];
+                state.gpsCurrentSpeedMps = 0;
                 syncActivityButton();
-                if (!await refreshUserData()) return;
+                await refreshUserData();
+                state.completedRide = completedActivity;
+                openTrackingModal(true, completedActivity, completedPoints, true);
                 showToast('Pedalada finalizada e salva.', 'success');
             } catch (error) {
                 console.error('Falha ao finalizar pedalada:', error);
@@ -2651,6 +3190,51 @@
                 if (state.activeActivity && state.gpsWatchId === null && state.activeActivity.status === 'in_progress') {
                     startPositionWatch();
                 }
+            }
+        }
+
+        function confirmDiscardActivity() {
+            openModal('Descartar pedalada?', `
+                <div class="space-y-3">
+                    <p class="text-sm leading-6 text-slate-300">Esta ação remove a atividade e os pontos GPS associados. Ela não poderá ser recuperada.</p>
+                    <p class="text-xs text-red-200">A remoção só acontece depois da confirmação abaixo.</p>
+                </div>
+            `);
+            setModalAction('Confirmar descarte', discardActivity);
+        }
+
+        async function discardActivity() {
+            if (!state.activeActivity) return;
+            const activity = state.activeActivity;
+            try {
+                if (activity.local_only) {
+                    const remainingActivities = state.activities.filter(item => item.id !== activity.id);
+                    localStorage.setItem(LOCAL_ACTIVITIES_STORAGE_KEY, JSON.stringify(
+                        remainingActivities.filter(item => item.local_only)
+                    ));
+                    state.activities = remainingActivities;
+                } else {
+                    const { data, error } = await window.rideXSupabase.from('activities')
+                        .delete().eq('id', activity.id).select('id').maybeSingle();
+                    if (error) throw error;
+                    if (!data) throw new Error('Pedalada não encontrada ou não autorizada.');
+                }
+                stopPositionWatch();
+                await releaseScreenWakeLock();
+                state.pendingGpsPoints = [];
+                persistPendingGpsPoints();
+                state.activeActivity = null;
+                state.gpsPoints = [];
+                state.gpsCurrentSpeedMps = 0;
+                state.completedRide = null;
+                closeModal();
+                syncActivityButton();
+                await refreshUserData();
+                switchView('dashboard');
+                showToast('Pedalada descartada.', 'success');
+            } catch (error) {
+                console.error('Falha ao descartar pedalada:', error);
+                showToast(error.message || 'Não foi possível descartar a pedalada.', 'info');
             }
         }
 
